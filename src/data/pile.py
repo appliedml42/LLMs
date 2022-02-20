@@ -7,6 +7,7 @@ import numpy as np
 import sentencepiece as spm
 import torch
 from pytorch_lightning import LightningDataModule
+from pytorch_lightning.utilities.cli import DATAMODULE_REGISTRY
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils.data import IterableDataset, DataLoader
 
@@ -36,12 +37,21 @@ class PileDataset(IterableDataset):
                         else:
                             seq = ids[i:i + self.seq_len]
                             seq = [self.tokenizer.bos_id()] + seq + [self.tokenizer.eos_id()]
-                            seq = seq + [self.tokenizer.pad_id()] * (self.seq_len + 2 - len(seq))
-                        yield np.asarray(seq)
+                            seq = seq + [0] * (self.seq_len + 2 - len(seq))
+                        x = np.asarray(seq)
+                        y = np.asarray(seq)
+                        yield x, y
 
 
+@DATAMODULE_REGISTRY
 class Pile(LightningDataModule):
-    def __init__(self, seq_len, batch_size, tokenizer_path, path, num_workers):
+    def __init__(self,
+                 seq_len: int,
+                 batch_size: int,
+                 tokenizer_path: str,
+                 path: str,
+                 num_workers: int):
+        super(Pile, self).__init__()
         self.tokenizer = spm.SentencePieceProcessor()
         self.tokenizer.load(tokenizer_path)
         self.vocab_size = self.tokenizer.vocab_size()
@@ -53,8 +63,6 @@ class Pile(LightningDataModule):
         self.num_workers = num_workers
 
         self.path = path
-
-        super().__init__()
         self.save_hyperparameters()
 
     def setup(self, stage: Optional[str] = None) -> None:
