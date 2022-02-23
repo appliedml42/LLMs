@@ -3,3 +3,5 @@ triton==1.0.0
 sentencepiece
 wandb
 names
+einops
+jsonargparse[signatures]

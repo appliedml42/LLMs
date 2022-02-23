@@ -11,7 +11,9 @@ In addition, I will also document interesting learnings [here](https://appliedml
 
 # Tasks
 I work on this when I have free time.
-- [ ] Update Docker container with Einops and Jsonargparse.
-- [ ] Update Pile module to generate proper target variables. 
+- [ ] Train sentencepiece tokenizer.
+- [ ] Implement [Pile](https://arxiv.org/pdf/2101.00027.pdf) bits per UTF-8 encoded byte (BPB) metric.
+- [x] Update Docker container with Einops and Jsonargparse.
+- [x] Update Pile module to generate proper target variables. 
 - [x] Standup Github Pages blog. 
 - [x] Implement GPT, Pile, and CLI modules. Something that is working end2end and will serve as the foundation for future work.

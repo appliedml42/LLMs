@@ -13,9 +13,9 @@ from torch.utils.data import IterableDataset, DataLoader
 
 
 class PileDataset(IterableDataset):
-    def __init__(self, fpaths, seq_len, tokenizer):
+    def __init__(self, fpaths, seq_len, tokenizer:spm.SentencePieceProcessor):
         self.fpaths = fpaths
-        self.seq_len = seq_len - 2
+        self.seq_len = seq_len
         self.tokenizer = tokenizer
 
     def __iter__(self):
@@ -31,16 +31,15 @@ class PileDataset(IterableDataset):
                 for line in reader:
                     text = json.loads(line)['text']
                     ids = self.tokenizer.encode_as_ids(text)
-                    for i in range(0, len(ids), self.seq_len):
-                        if len(ids) == self.seq_len:
-                            seq = [self.tokenizer.bos_id()] + ids[i:i + self.seq_len] + [self.tokenizer.eos_id()]
-                        else:
-                            seq = ids[i:i + self.seq_len]
-                            seq = [self.tokenizer.bos_id()] + seq + [self.tokenizer.eos_id()]
-                            seq = seq + [0] * (self.seq_len + 2 - len(seq))
-                        x = np.asarray(seq)
-                        y = np.asarray(seq)
-                        yield x, y
+                    for i in range(0, len(ids), self.seq_len + 1):
+                        seq = ids[i:i + self.seq_len + 1]
+                        if len(seq) < self.seq_len + 1:
+                            seq = seq + [0] * (self.seq_len + 1 - len(seq))
+
+                        #x = np.asarray(seq[:-1])
+                        #y = np.asarray(seq[1:])
+                        #mask = y != 0
+                        yield np.asarray(seq)
 
 
 @DATAMODULE_REGISTRY
@@ -94,3 +93,8 @@ class Pile(LightningDataModule):
 
     def predict_dataloader(self) -> EVAL_DATALOADERS:
         raise ValueError('No prediction dataloader implemented')
+
+    def on_after_batch_transfer(self, batch, dataloader_idx):
+        x, y = batch[:, :-1], batch[:, 1:]
+        mask = y != 0
+        return x, y, mask

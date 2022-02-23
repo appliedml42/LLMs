@@ -61,33 +61,21 @@ class MultiHeadAttention(nn.Module):
         nn.init.xavier_uniform_(self.w_out.weight)
         self.w_out.bias.data.fill_(0)
 
-    def _apply_mask(self,
-                    attention_logits,
-                    encoder_padding_mask=None,
-                    decoder_padding_mask=None,
-                    decoder_causal_mask=None):
+    def _apply_mask(self, attention_logits, padding_mask, causal_mask):
+        if padding_mask is not None:
+            padding_mask = einops.rearrange(padding_mask, 'batch seq_len -> batch 1 1 seq_len')
+            return attention_logits.masked_fill(padding_mask == 0, -9e15)
 
-        if encoder_padding_mask is not None:
-            encoder_padding_mask = einops.rearrange(encoder_padding_mask,
-                                                    'batch seq_len -> batch 1 1 seq_len')
-            attention_logits = attention_logits.masked_fill(encoder_padding_mask == 0, -9e15)
-
-        if decoder_padding_mask is not None:
-            decoder_padding_mask = einops.rearrange(decoder_padding_mask,
-                                                    'batch seq_len -> batch 1 1 seq_len')
-            attention_logits = attention_logits.masked_fill(decoder_padding_mask == 0, -9e15)
-
-        if decoder_causal_mask is not None:
-            attention_logits = attention_logits.masked_fill(decoder_causal_mask == 0, -9e15)
+        if causal_mask is not None:
+            return attention_logits.masked_fill(causal_mask == 0, -9e15)
 
         return attention_logits
 
     def forward(self,
                 query,
                 value=None,
-                encoder_padding_mask=None,
-                decoder_padding_mask=None,
-                decoder_causal_mask=None):
+                padding_mask=None,
+                causal_mask=None):
         q_proj = self.w_q(query)
         if value is None:
             value = query
@@ -115,10 +103,7 @@ class MultiHeadAttention(nn.Module):
                                   )
 
         attention_logits = torch.matmul(q_proj, k_proj) / math.sqrt(q_proj.size()[-1])
-        attention_logits = self._apply_mask(attention_logits,
-                                            encoder_padding_mask,
-                                            decoder_padding_mask,
-                                            decoder_causal_mask)
+        attention_logits = self._apply_mask(attention_logits, padding_mask=padding_mask, causal_mask=causal_mask)
 
         weights = F.softmax(attention_logits, dim=-1)
 
@@ -146,8 +131,8 @@ class EncoderBlock(nn.Module):
         self.norm2 = nn.LayerNorm(d_model)
         self.dropout2 = nn.Dropout(dropout)
 
-    def forward(self, x, mask=None):
-        attended_x, _ = self.multi_head_attention(x, encoder_padding_mask=mask)
+    def forward(self, x, causal_mask, mask):
+        attended_x, _ = self.multi_head_attention(x, causal_mask=causal_mask, padding_mask=mask)
         x = x + self.dropout1(attended_x)
         x = self.norm1(x)
 
@@ -158,90 +143,24 @@ class EncoderBlock(nn.Module):
         return x
 
 
-class DecoderBlock(nn.Module):
-    def __init__(self, d_model, num_heads, d_ff, dropout):
-        super(DecoderBlock, self).__init__()
-        self.multi_head_attention1 = MultiHeadAttention(num_heads, d_model)
-        self.norm1 = nn.LayerNorm(d_model)
-        self.dropout1 = nn.Dropout(dropout)
-
-        self.multi_head_attention2 = MultiHeadAttention(num_heads, d_model)
-        self.norm2 = nn.LayerNorm(d_model)
-        self.dropout2 = nn.Dropout(dropout)
-
-        self.pff = nn.Sequential(
-            nn.Linear(d_model, d_ff),
-            nn.Dropout(dropout),
-            nn.ReLU(inplace=True),
-            nn.Linear(d_ff, d_model)
-        )
-        self.norm3 = nn.LayerNorm(d_model)
-        self.dropout3 = nn.Dropout(dropout)
-
-    def forward(self,
-                encoder_feats,
-                decoder_x,
-                encoder_padding_mask=None,
-                decoder_padding_mask=None,
-                decoder_causal_mask=None):
-        decoder_attn_o, _ = self.multi_head_attention1(decoder_x,
-                                                       decoder_padding_mask=decoder_padding_mask,
-                                                       decoder_causal_mask=decoder_causal_mask)
-
-        decoder_x = decoder_x + self.dropout1(decoder_attn_o)
-        decoder_x = self.norm1(decoder_x)
-
-        encoder_decoder_x, weights = self.multi_head_attention2(decoder_x,
-                                                          encoder_feats,
-                                                          encoder_padding_mask)
-        x = decoder_x + self.dropout2(encoder_decoder_x)
-        x = self.norm2(x)
-
-        pff_x = self.pff(x)
-        x = x + self.dropout3(pff_x)
-        x = self.norm3(x)
-
-        return x
-
-
 class Encoder(nn.Module):
-    def __init__(self, num_layers, num_heads, d_model, dropout):
+    def __init__(self, num_layers, num_heads, d_model, dropout, seq_len, causal_mask=False):
         super(Encoder, self).__init__()
         self.encoders = nn.ModuleList(
             [EncoderBlock(d_model, num_heads, 2 * d_model, dropout) for _ in range(num_layers)])
+        self.causal_mask = causal_mask
+        self.seq_len = seq_len
+        if causal_mask:
+            self.register_buffer('causal_mask_tensor',
+                                 1 - torch.triu(torch.ones(seq_len, seq_len), diagonal=1),
+                                 persistent=False
+                                 )
 
     def forward(self, x, mask=None):
         for e in self.encoders:
-            x = e(x, mask)
+            x = e(x, self.causal_mask_tensor, mask)
 
         return x
-
-
-class Decoder(nn.Module):
-    def __init__(self, num_layers, num_heads, d_model, seq_len, dropout):
-        super(Decoder, self).__init__()
-        self.decoders = nn.ModuleList(
-            [DecoderBlock(d_model, num_heads, 2 * d_model, dropout) for _ in range(num_layers)])
-
-        self.register_buffer('causal_mask',
-                             1 - torch.triu(torch.ones(seq_len, seq_len), diagonal=1),
-                             persistent=False
-                             )
-
-    def forward(self,
-                encoder_feats,
-                decoder_x,
-                encoder_padding_mask=None,
-                decoder_padding_mask=None):
-        for d in self.decoders:
-            decoder_x = d(encoder_feats,
-                          decoder_x,
-                          encoder_padding_mask,
-                          decoder_padding_mask,
-                          self.causal_mask
-                          )
-
-        return decoder_x
 
 
 class Embedding(nn.Module):
