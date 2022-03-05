@@ -9,7 +9,8 @@ RUN apt-get update && apt-get install -y sudo poppler-utils curl git gcc vim wge
 RUN apt-get -y remove libnccl2 libnccl-dev
 RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/7fa2af80.pub
 RUN add-apt-repository "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/ /"
-RUN apt-get update && sudo apt-get install -y libnccl2=2.11.4-1+cuda11.4 libnccl-dev=2.11.4-1+cuda11.4
+RUN apt-get update && sudo apt-get install -y libnccl2=2.11.4-1+cuda11.4 libnccl-dev=2.11.4-1+cuda11.4 cmake \
+    build-essential pkg-config libgoogle-perftools-dev
 
 # Setup user
 RUN useradd --uid 1000 --shell /bin/bash appliedml85
@@ -37,3 +38,14 @@ ENV LD_LIBRARY_PATH /usr/local/openmpi/lib:$LD_LIBRARY_PATH
 ENV PATH /usr/local/openmpi/bin:$PATH
 WORKDIR /app
 RUN rm -rf openmpi*
+
+# Install SPM CLI Tools
+RUN git clone https://github.com/google/sentencepiece.git
+WORKDIR sentencepiece
+RUN mkdir build
+WORKDIR build
+RUN cmake ..
+RUN make -j $(nproc)
+RUN sudo make install
+RUN sudo ldconfig -v
+WORKDIR /app

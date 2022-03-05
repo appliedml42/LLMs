@@ -7,13 +7,28 @@ implementations. However, I decided to implement my own language models on the P
 * Refresh my understanding of Transformers.
 * Justify buying [this](https://bizon-tech.com/bizon-z5000.html) at some point 🤑.
 
-In addition, I will also document interesting learnings [here](https://appliedml85.github.io/blog/transformers-language-models).
+In addition, I will also document interesting learnings [here](https://appliedml85.github.io).
 
 # Tasks
 I work on this when I have free time.
-- [ ] Train sentencepiece tokenizer.
-- [ ] Implement [Pile](https://arxiv.org/pdf/2101.00027.pdf) bits per UTF-8 encoded byte (BPB) metric.
+- [ ] Implement first end2end run.
+- [ ] Integrate with WandB
+- [x] Train sentencepiece tokenizer.
+- [x] Add sentencepiece tokenizer CLI to Docker container.
 - [x] Update Docker container with Einops and Jsonargparse.
 - [x] Update Pile module to generate proper target variables. 
 - [x] Standup Github Pages blog. 
 - [x] Implement GPT, Pile, and CLI modules. Something that is working end2end and will serve as the foundation for future work.
+
+# Tokenizers
+## Pile
+The tokenizer for Pile was trained using [Google SentencePiece](https://github.com/google/sentencepiece) with the following
+configuration.
+
+```
+nohup spm_train --input ../fit/train/tokenizer.train.text --vocab_size 50000 --model_prefix 50000 --model_type bpe \ 
+--pad_id=0 --unk_id=1 --bos_id=-1 --eos_id=-1 --pad_piece=[PAD] --unk_piece=[UNK} &
+```
+
+The input.txt is created by concatinating file [11](https://mystic.the-eye.eu/public/AI/pile/train/11.jsonl.zst) and 
+[22](https://mystic.the-eye.eu/public/AI/pile/train/22.jsonl.zst) from the train section.

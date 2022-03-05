@@ -64,10 +64,10 @@ class MultiHeadAttention(nn.Module):
     def _apply_mask(self, attention_logits, padding_mask, causal_mask):
         if padding_mask is not None:
             padding_mask = einops.rearrange(padding_mask, 'batch seq_len -> batch 1 1 seq_len')
-            return attention_logits.masked_fill(padding_mask == 0, -9e15)
+            attention_logits = attention_logits.masked_fill(padding_mask == 0, -9e15)
 
         if causal_mask is not None:
-            return attention_logits.masked_fill(causal_mask == 0, -9e15)
+            attention_logits = attention_logits.masked_fill(causal_mask == 0, -9e15)
 
         return attention_logits
 

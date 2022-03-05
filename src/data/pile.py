@@ -13,7 +13,7 @@ from torch.utils.data import IterableDataset, DataLoader
 
 
 class PileDataset(IterableDataset):
-    def __init__(self, fpaths, seq_len, tokenizer:spm.SentencePieceProcessor):
+    def __init__(self, fpaths, seq_len, tokenizer: spm.SentencePieceProcessor):
         self.fpaths = fpaths
         self.seq_len = seq_len
         self.tokenizer = tokenizer
@@ -30,16 +30,14 @@ class PileDataset(IterableDataset):
             with open(fpath) as reader:
                 for line in reader:
                     text = json.loads(line)['text']
-                    ids = self.tokenizer.encode_as_ids(text)
+                    ids = self.tokenizer.EncodeAsIds(text)
                     for i in range(0, len(ids), self.seq_len + 1):
                         seq = ids[i:i + self.seq_len + 1]
+                        weights = [0] * len(self.seq)
                         if len(seq) < self.seq_len + 1:
-                            seq = seq + [0] * (self.seq_len + 1 - len(seq))
-
-                        #x = np.asarray(seq[:-1])
-                        #y = np.asarray(seq[1:])
-                        #mask = y != 0
-                        yield np.asarray(seq)
+                            weights = weights + [0] * (self.seq_len + 1 - len(seq))
+                            seq = seq + [self.tokenizer.pad_id()] * (self.seq_len + 1 - len(seq))
+                        yield np.asarray(seq), np.asarray(weights)
 
 
 @DATAMODULE_REGISTRY
@@ -95,6 +93,7 @@ class Pile(LightningDataModule):
         raise ValueError('No prediction dataloader implemented')
 
     def on_after_batch_transfer(self, batch, dataloader_idx):
+        batch, weights = batch
         x, y = batch[:, :-1], batch[:, 1:]
-        mask = y != 0
-        return x, y, mask
+        mask, weights = weights[:, :-1] != 0, weights[:, 1:]
+        return x, y, mask.type(torch.unit8), weights
