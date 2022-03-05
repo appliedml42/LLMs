@@ -26,8 +26,7 @@ The tokenizer for Pile was trained using [Google SentencePiece](https://github.c
 configuration.
 
 ```
-nohup spm_train --input ../fit/train/tokenizer.train.text --vocab_size 50000 --model_prefix 50000 --model_type bpe \ 
---pad_id=0 --unk_id=1 --bos_id=-1 --eos_id=-1 --pad_piece=[PAD] --unk_piece=[UNK} &
+nohup spm_train --input ../fit/train/tokenizer.train.text --vocab_size 50000 --model_prefix 50000 --model_type bpe --pad_id=0 --unk_id=1 --bos_id=-1 --eos_id=-1 --pad_piece=[PAD] --unk_piece=[UNK] --input_sentence_size=100000000 &
 ```
 
 The input.txt is created by concatinating file [11](https://mystic.the-eye.eu/public/AI/pile/train/11.jsonl.zst) and 
