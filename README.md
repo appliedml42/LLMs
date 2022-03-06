@@ -13,8 +13,8 @@ implementations. However, I decided to implement my own language models on the P
 
 # Tasks
 I work on this when I have free time.
-- [ ] Publish post: Perplexity: A Information Theoritic Viewpoint.
-- [ ] Publish post: Transformer Training Stability: Role of Layer Normalization.
+- [ ] Publish post, Perplexity: A Information Theoritic Viewpoint.
+- [ ] Publish post, Transformer Training Stability: Role of Layer Normalization.
 - [ ] Implement validation step.
 - [x] Implement first end2end run.
 - [x] Integrate with WandB
