@@ -7,7 +7,9 @@ implementations. However, I decided to implement my own language models on the P
 * Refresh my understanding of Transformers.
 * Justify buying [this](https://bizon-tech.com/bizon-z5000.html) at some point 🤑.
 
-In addition, I will also document interesting learnings [here](https://appliedml85.github.io).
+# Experiments & Documentation
+- [Notes](https://appliedml85.github.io)
+- [Wandb](https://wandb.ai/appliedml85/language_modeling?workspace=user-appliedml85)
 
 # Tasks
 I work on this when I have free time.
