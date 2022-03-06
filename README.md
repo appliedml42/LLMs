@@ -4,7 +4,7 @@ There are various excellent open-source Transformer
 implementations. However, I decided to implement my own language models on the Pile dataset for the following reasons:
 * Learn [Pytorch Lightning](https://www.pytorchlightning.ai), [Wandb](https://wandb.ai/site), and [Einops](http://einops.rocks).
 * Gain experience with large-scale training by experimenting with tools like [Deepspeed](https://www.deepspeed.ai) and [Fairscale](https://fairscale.readthedocs.io/en/latest/).
-* Refresh my understanding of Transformers.
+* Enhance my understanding of Transformers.
 * Justify buying [this](https://bizon-tech.com/bizon-z5000.html) at some point 🤑.
 
 # Experiments & Documentation
