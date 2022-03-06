@@ -10,7 +10,7 @@ from pytorch_lightning import LightningDataModule
 from pytorch_lightning.utilities.cli import DATAMODULE_REGISTRY
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils.data import IterableDataset, DataLoader
-
+from pytorch_lightning.loggers import WandbLogger
 
 class PileDataset(IterableDataset):
     def __init__(self, fpaths, seq_len, tokenizer: spm.SentencePieceProcessor):
@@ -33,7 +33,7 @@ class PileDataset(IterableDataset):
                     ids = self.tokenizer.EncodeAsIds(text)
                     for i in range(0, len(ids), self.seq_len + 1):
                         seq = ids[i:i + self.seq_len + 1]
-                        weights = [0] * len(self.seq)
+                        weights = [1] * len(seq)
                         if len(seq) < self.seq_len + 1:
                             weights = weights + [0] * (self.seq_len + 1 - len(seq))
                             seq = seq + [self.tokenizer.pad_id()] * (self.seq_len + 1 - len(seq))
@@ -96,4 +96,4 @@ class Pile(LightningDataModule):
         batch, weights = batch
         x, y = batch[:, :-1], batch[:, 1:]
         mask, weights = weights[:, :-1] != 0, weights[:, 1:]
-        return x, y, mask.type(torch.unit8), weights
+        return x, y, mask.type(torch.uint8), weights

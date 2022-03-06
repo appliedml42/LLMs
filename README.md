@@ -11,8 +11,8 @@ In addition, I will also document interesting learnings [here](https://appliedml
 
 # Tasks
 I work on this when I have free time.
-- [ ] Implement first end2end run.
-- [ ] Integrate with WandB
+- [x] Implement first end2end run.
+- [x] Integrate with WandB
 - [x] Train sentencepiece tokenizer.
 - [x] Add sentencepiece tokenizer CLI to Docker container.
 - [x] Update Docker container with Einops and Jsonargparse.
@@ -31,3 +31,6 @@ nohup spm_train --input ../fit/train/tokenizer.train.text --vocab_size 50000 --m
 
 The input.txt is created by concatinating file [11](https://mystic.the-eye.eu/public/AI/pile/train/11.jsonl.zst) and 
 [22](https://mystic.the-eye.eu/public/AI/pile/train/22.jsonl.zst) from the train section.
+
+# References
+- [Pytorch Lightning Transformer Tutorial](https://pytorch-lightning.readthedocs.io/en/latest/notebooks/course_UvA-DL/05-transformers-and-MH-attention.html). Amazing tutorial please read!! 
