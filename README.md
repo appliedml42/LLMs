@@ -39,3 +39,4 @@ The input.txt is created by concatinating file [11](https://mystic.the-eye.eu/pu
 
 # References
 - [Pytorch Lightning Transformer Tutorial](https://pytorch-lightning.readthedocs.io/en/latest/notebooks/course_UvA-DL/05-transformers-and-MH-attention.html). Amazing tutorial please read!! 
+- [SentencePiece Python Tutorial](https://github.com/google/sentencepiece)
