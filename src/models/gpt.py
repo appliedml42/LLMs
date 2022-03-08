@@ -78,7 +78,7 @@ class GPT(plm.LightningModule):
         return loss_overall
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(params=self.parameters(), lr=self.hparams.lr)
+        optimizer = torch.optim.AdamW(params=self.parameters(), lr=self.hparams.lr)
         scheduler = CosineWarmupScheduler(optimizer=optimizer,
                                           warmup=self.hparams.warmup,
                                           max_iters=self.hparams.max_iters)

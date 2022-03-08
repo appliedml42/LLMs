@@ -5,3 +5,5 @@ wandb
 names
 einops
 jsonargparse[signatures]
+fairscale
+lightning-bolts

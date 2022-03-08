@@ -10,7 +10,7 @@ from pytorch_lightning import LightningDataModule
 from pytorch_lightning.utilities.cli import DATAMODULE_REGISTRY
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils.data import IterableDataset, DataLoader
-from pytorch_lightning.loggers import WandbLogger
+
 
 class PileDataset(IterableDataset):
     def __init__(self, fpaths, seq_len, tokenizer: spm.SentencePieceProcessor):
@@ -26,17 +26,20 @@ class PileDataset(IterableDataset):
         fpaths = self.fpaths[start_idx:end_idx]
         shuffle(fpaths)
 
+        ids = []
         for fpath in fpaths:
             with open(fpath) as reader:
                 for line in reader:
                     text = json.loads(line)['text']
-                    ids = self.tokenizer.EncodeAsIds(text)
+                    ids += self.tokenizer.EncodeAsIds(text) + [self.tokenizer.PieceToId('[eod]')]
                     for i in range(0, len(ids), self.seq_len + 1):
                         seq = ids[i:i + self.seq_len + 1]
                         weights = [1] * len(seq)
                         if len(seq) < self.seq_len + 1:
-                            weights = weights + [0] * (self.seq_len + 1 - len(seq))
-                            seq = seq + [self.tokenizer.pad_id()] * (self.seq_len + 1 - len(seq))
+                            ids = seq
+                            continue
+                            #weights = weights + [0] * (self.seq_len + 1 - len(seq))
+                            #seq = seq + [self.tokenizer.pad_id()] * (self.seq_len + 1 - len(seq))
                         yield np.asarray(seq), np.asarray(weights)
 
 
@@ -76,9 +79,10 @@ class Pile(LightningDataModule):
             self.val_dataset = PileDataset(self.val_paths, self.seq_len, self.tokenizer)
 
         if stage == 'test':
-            self.test_paths = [os.path.join(self.path, x) for x in os.listdir(self.path) if x.endswith('jsonl')]
-            shuffle(self.path)
-            self.test_dataset = PileDataset(self.path, self.seq_len, self.tokenizer)
+            self.test_paths = [os.path.join(self.path, 'test', x) for x in os.listdir(os.path.join(self.path, 'test'))
+                               if x.endswith('jsonl')]
+            shuffle(self.test_paths)
+            self.test_dataset = PileDataset(self.test_paths, self.seq_len, self.tokenizer)
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         return DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
