@@ -38,5 +38,5 @@ The input.txt is created by concatinating file [11](https://mystic.the-eye.eu/pu
 [22](https://mystic.the-eye.eu/public/AI/pile/train/22.jsonl.zst) from the train section.
 
 # References
-- [Pytorch Lightning Transformer Tutorial](https://pytorch-lightning.readthedocs.io/en/latest/notebooks/course_UvA-DL/05-transformers-and-MH-attention.html). Amazing tutorial please read!! 
+- [Pytorch Lightning Transformer Tutorial](https://pytorch-lightning.readthedocs.io/en/latest/notebooks/course_UvA-DL/05-transformers-and-MH-attention.html)
 - [SentencePiece Python Tutorial](https://github.com/google/sentencepiece)
