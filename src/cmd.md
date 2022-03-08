@@ -1,3 +1,4 @@
+# CLI Log
 export EXP_PATH=`/workspace/scripts/gen_dir.sh /workspace/experiments/language_modeling` && MODEL=GPT DATA=Pile nohup python runner.py \
 fit --model.batch_size 16 --model.seq_len 1024 --model.num_layers 6 --model.num_heads 12 --model.d_model 768 --model.dropout 0.1 \
 --model.lr 0.0001 --model.warmup 10000 --model.max_iters 10_000_000 --data.tokenizer_path /workspace/data/pile/tokenizer/50000.model \
