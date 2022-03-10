@@ -1,29 +1,31 @@
+import math
+from typing import Optional
+
+import einops
 import pytorch_lightning as plm
 import torch.nn
 import torch.optim
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY
+from pytorch_lightning.utilities.cli import instantiate_class
 from torch.nn import functional as F
-from typing import Optional
-import einops
+
 from models.transformer_modules import Embedding, Encoder
-from models.optimizer_modules import CosineWarmupScheduler
-from pytorch_lightning.loggers import WandbLogger
-import math
 
 
 @MODEL_REGISTRY
 class GPT(plm.LightningModule):
     def __init__(self,
                  num_layers: int,
-                 batch_size: int,
                  vocab_size: int,
                  num_heads: int,
                  d_model: int,
                  seq_len: int,
                  dropout: float,
-                 lr: Optional[float] = -1,
-                 warmup: Optional[float] = -1,
-                 max_iters: Optional[float] = -1):
+                 batch_size: int,
+                 optimizer_init: Optional[dict] = None,
+                 lr_scheduler_init: Optional[dict] = None,
+                 lr_scheduler_interval: Optional[str] = None
+                 ):
         super(GPT, self).__init__()
         self.save_hyperparameters()
         self.embedding = Embedding(d_model, vocab_size, seq_len, enable_padding=True)
@@ -35,22 +37,6 @@ class GPT(plm.LightningModule):
         x = self.encoder(x, mask=mask)
         x = self.output(x)
         return x
-
-    '''def validation_step(self, batch, batch_idx):
-        x, y_true, mask, weights = batch
-
-        y_pred = einops.rearrange(self.forward(x, mask=mask), 'batch seq_len vocab -> batch (seq_len vocab)')
-        y_true = einops.rearrange(y_true, 'batch seq_len -> (batch seq_len)')
-
-        loss_matrix = F.cross_entropy(y_pred, y_true, reduction='none')
-        loss_matrix = loss_matrix * weights
-
-        loss = torch.sum(loss_matrix) / torch.sum(weights)
-        ppl = math.pow(loss / math.log(2), 2)
-        self.log('Validation/loss', loss)
-        self.log('Validation/ppl', ppl)
-
-        return loss'''
 
     def training_step(self, batch, batch_idx):
         x, y_true, mask, weight = batch
@@ -78,8 +64,15 @@ class GPT(plm.LightningModule):
         return loss_overall
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(params=self.parameters(), lr=self.hparams.lr)
-        scheduler = CosineWarmupScheduler(optimizer=optimizer,
-                                          warmup=self.hparams.warmup,
-                                          max_iters=self.hparams.max_iters)
-        return [optimizer], [{'scheduler': scheduler, 'interval': 'step'}]
+        optimizer = instantiate_class(self.parameters(), self.hparams.optimizer_init)
+        scheduler = instantiate_class(optimizer, self.hparams.lr_scheduler_init)
+
+        if self.hparams.lr_scheduler_interval is None:
+            return [optimizer], [{'scheduler': scheduler}]
+        else:
+            return [optimizer], [
+                {
+                    'scheduler': scheduler,
+                    'interval': self.hparams.lr_scheduler_interval
+                }
+            ]
