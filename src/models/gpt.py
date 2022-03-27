@@ -65,14 +65,20 @@ class GPT(plm.LightningModule):
 
     def configure_optimizers(self):
         optimizer = instantiate_class(self.parameters(), self.hparams.optimizer_init)
-        scheduler = instantiate_class(optimizer, self.hparams.lr_scheduler_init)
+        scheduler_config = None
+        if self.hparams.lr_scheduler_init is not None:
+            scheduler = instantiate_class(optimizer, self.hparams.lr_scheduler_init)
+            if self.hparams.lr_scheduler_interval is None:
+                scheduler_config = [{'scheduler': scheduler}]
+            else:
+                scheduler_config = [
+                    {
+                        'scheduler': scheduler,
+                        'interval': self.hparams.lr_scheduler_interval
+                    }
+                ]
 
-        if self.hparams.lr_scheduler_interval is None:
-            return [optimizer], [{'scheduler': scheduler}]
+        if scheduler_config is None:
+            return [optimizer]
         else:
-            return [optimizer], [
-                {
-                    'scheduler': scheduler,
-                    'interval': self.hparams.lr_scheduler_interval
-                }
-            ]
+            return [optimizer], scheduler_config
