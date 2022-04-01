@@ -1,4 +1,4 @@
-import math
+from collections import defaultdict
 from typing import Optional
 
 import einops
@@ -22,6 +22,7 @@ class GPT(plm.LightningModule):
                  seq_len: int,
                  dropout: float,
                  batch_size: int,
+                 dataset_stats: Optional[dict] = None,
                  optimizer_init: Optional[dict] = None,
                  lr_scheduler_init: Optional[dict] = None,
                  lr_scheduler_interval: Optional[str] = None
@@ -39,7 +40,7 @@ class GPT(plm.LightningModule):
         return x
 
     def training_step(self, batch, batch_idx):
-        x, y_true, mask, weight = batch
+        x, y_true, mask, weight, _ = batch
 
         y_pred = einops.rearrange(self.forward(x, mask=mask), 'batch seq_len vocab -> (batch seq_len) vocab')
         y_true = einops.rearrange(y_true, 'batch seq_len -> (batch seq_len)')
@@ -51,17 +52,56 @@ class GPT(plm.LightningModule):
         loss_matrix = loss_matrix * weight
 
         loss_overall = torch.sum(loss_matrix) / torch.sum(weight)
-
         self.log('Train/Loss', loss_overall)
-        self.log('Train/PPL', math.pow(loss_overall / math.log(2), 2))
 
-        for context_length in range(5, self.hparams.seq_len + 1, 50):
-            loss_column = torch.sum(loss_matrix[:, context_length - 1]) / torch.sum(weight[:, context_length - 1])
-
-            # Will happen if  that sequence index has no elements.
-            if not torch.isnan(loss_column):
-                self.log(f'Train/PPL@{context_length}', math.pow(loss_column / math.log(2), 2))
         return loss_overall
+
+    def validation_step(self, batch, batch_idx):
+        dataset_stats = self.hparams.dataset_stats['val']
+        x, y_true, mask, weight, datasets = batch
+
+        y_pred = einops.rearrange(self.forward(x, mask=mask), 'batch seq_len vocab -> (batch seq_len) vocab')
+        y_true = einops.rearrange(y_true, 'batch seq_len -> (batch seq_len)')
+
+        loss_matrix = einops.rearrange(F.cross_entropy(y_pred, y_true, reduction='none'),
+                                       '(batch seq_len) -> batch seq_len',
+                                       batch=self.hparams.batch_size,
+                                       seq_len=self.hparams.seq_len)
+
+        # Make this more elegant :)
+        losses = defaultdict(float)
+        counts = defaultdict(float)
+        loss_matrix = torch.sum(loss_matrix * weight, dim=1)
+        count_matrix = torch.sum(weight, dim=1)
+        for i, dataset in enumerate(datasets):
+            losses[dataset] += loss_matrix[i]
+            counts[dataset] += count_matrix[i]
+        total = sum(v for k, v in counts.items())
+        weights = {k: v / total for k, v in counts.items()}
+
+        pile_loss = 0.0
+        pile_bpb = 0.0
+        output = {}
+        for dataset, loss in losses.items():
+            if counts[dataset] == 0:
+                continue
+            loss = loss / counts[dataset]
+            bpb = loss * dataset_stats['num_nz_tokens'][dataset]/float(dataset_stats['num_utf8_bytes'][dataset])
+            pile_loss += weights[dataset] * loss
+            pile_bpb += weights[dataset] * bpb
+            output[dataset] = loss
+            if self.trainer.is_global_zero:
+                self.log(f'Validation/{dataset}/loss', loss, on_step=False, on_epoch=True,
+                         sync_dist=False,
+                         batch_size=self.hparams.batch_size, rank_zero_only=True)
+                self.log(f'Validation/{dataset}/BPB', bpb, on_step=False, on_epoch=True,
+                         sync_dist=False,
+                         batch_size=self.hparams.batch_size, rank_zero_only=True)
+
+        self.log('Validation/loss', pile_loss, on_step=False, on_epoch=True, sync_dist=True,
+                 batch_size=self.hparams.batch_size)
+        self.log('Validation/BPB', pile_bpb, on_step=False, on_epoch=True, sync_dist=True,
+                 batch_size=self.hparams.batch_size)
 
     def configure_optimizers(self):
         optimizer = instantiate_class(self.parameters(), self.hparams.optimizer_init)

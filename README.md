@@ -15,7 +15,12 @@ implementations. However, I decided to implement my own language models on the P
 I work on this when I have free time.
 - [ ] Publish post, Perplexity: A Information Theoritic Viewpoint.
 - [ ] Publish post, Transformer Training Stability: Role of Layer Normalization.
-- [ ] Implement validation & Test step inspired by [Pile dataset details.](https://arxiv.org/pdf/2101.00027.pdf)
+- [ ] Publish post, 1 TB Random Access Dataset using Sqlite3 and ZSTD.
+- [ ] Update project post, Learning from Implementing Multi-GPU Training in Pytorch Lightning.
+- [x] Upgrade to Pytorch Lightning 1.6.0
+- [x] Trigger first 4 GPU Run with validation step and DDP Sharded strategy.
+- [x] Implement Pile Random Access Dataset. Needed for proper multi-gpu.
+- [x] Implement validation step inspired by [Pile dataset details.](https://arxiv.org/pdf/2101.00027.pdf)
 - [x] Implement first end2end run.
 - [x] Integrate with WandB
 - [x] Train sentencepiece tokenizer.
