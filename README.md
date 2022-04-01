@@ -8,8 +8,8 @@ implementations. However, I decided to implement my own language models on the P
 * Justify buying [this](https://bizon-tech.com/bizon-z5000.html) at some point 🤑.
 
 # Experiments & Documentation
-- [Notes](https://appliedml85.github.io)
-- [Wandb](https://wandb.ai/appliedml85/language_modeling?workspace=user-appliedml85)
+- [Notes](https://appliedml42.github.io)
+- [Wandb](https://wandb.ai/appliedml42/language_modeling?workspace=user-appliedml42)
 
 # Tasks
 I work on this when I have free time.
@@ -30,7 +30,7 @@ I work on this when I have free time.
 - [x] Standup Github Pages blog. 
 - [x] Implement GPT, Pile, and CLI modules. Something that is working end2end and will serve as the foundation for future work.
 
-# Tokenizers
+# Dataset & Tokenizers
 ## Pile
 The tokenizer for Pile was trained using [Google SentencePiece](https://github.com/google/sentencepiece) with the following
 configuration.
