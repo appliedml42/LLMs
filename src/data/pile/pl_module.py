@@ -51,7 +51,7 @@ class PileRandomIODataset(Dataset):
         return self.length
 
     def _get_db_and_idx(self, idx):
-        # Identify which DB this key will belong to. The bisect method return the index at which th
+        # Identify which DB this key will belong to.
         key = self.index_keys.bisect_left(idx) - 1
         fpath = self.index[key]
         # Calculate key in the local DB.
