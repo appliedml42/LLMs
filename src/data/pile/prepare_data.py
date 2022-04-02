@@ -55,10 +55,10 @@ class PileFileDataset(IterableDataset):
     def __iter__(self):
         logging.warning(f'Starting {self.fpath}\n')
         curr = self.con.cursor()
-        create_cmd = "CREATE TABLE rows (idx INT PRIMARY KEY, local_idx INT, fpath TEXT, dataset TEXT, tokens BLOB)"
+        create_cmd = "CREATE TABLE rows (idx INT PRIMARY KEY, local_idx INT, fpath TEXT, dataset TEXT, tokens BLOB, start INT)"
         curr.execute(create_cmd)
 
-        insert_cmd = "INSERT INTO rows VALUES (?, ?, ?, ?, ?)"
+        insert_cmd = "INSERT INTO rows VALUES (?, ?, ?, ?, ?, ?, ?)"
 
         idx = 0
         lines = 0
@@ -150,7 +150,7 @@ if __name__ == '__main__':
     prepare_data('val', cmd.path, cmd.seq_len, cmd.tokenizer_path)
 
     logging.warning('Preparing data for test')
-    #prepare_data('test', cmd.path, cmd.seq_len, cmd.tokenizer_path)
+    prepare_data('test', cmd.path, cmd.seq_len, cmd.tokenizer_path)
 
     logging.warning('Preparing data for train')
-    # prepare_data('train', cmd.path, cmd.seq_len, cmd.tokenizer_path)
+    prepare_data('train', cmd.path, cmd.seq_len, cmd.tokenizer_path)
