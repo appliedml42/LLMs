@@ -17,6 +17,8 @@ I work on this when I have free time.
 - [ ] Publish post, Transformer Training Stability: Role of Layer Normalization.
 - [ ] Publish post, 1 TB Random Access Dataset using Sqlite3 and ZSTD.
 - [ ] Update project post, Learning from Implementing Multi-GPU Training in Pytorch Lightning.
+- [ ] Add context to partial documents. Partial documents arise when we split the original document to truncate.
+- [ ] Add log 2 adjustment to metrics computation.
 - [x] Upgrade to Pytorch Lightning 1.6.0
 - [x] Trigger first 4 GPU Run with validation step and DDP Sharded strategy.
 - [x] Implement Pile Random Access Dataset. Needed for proper multi-gpu.
