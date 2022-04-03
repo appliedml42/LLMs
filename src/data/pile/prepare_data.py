@@ -55,10 +55,10 @@ class PileFileDataset(IterableDataset):
     def __iter__(self):
         logging.warning(f'Starting {self.fpath}\n')
         curr = self.con.cursor()
-        create_cmd = "CREATE TABLE rows (idx INT PRIMARY KEY, local_idx INT, fpath TEXT, dataset TEXT, tokens BLOB, start INT)"
+        create_cmd = "CREATE TABLE rows (idx INT PRIMARY KEY, local_idx INT, fpath TEXT, dataset TEXT, tokens BLOB)"
         curr.execute(create_cmd)
 
-        insert_cmd = "INSERT INTO rows VALUES (?, ?, ?, ?, ?, ?, ?)"
+        insert_cmd = "INSERT INTO rows VALUES (?, ?, ?, ?, ?)"
 
         idx = 0
         lines = 0
