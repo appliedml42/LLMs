@@ -16,7 +16,7 @@ class MyLightningCLI(LightningCLI):
         parser.link_arguments("data.vocab_size", "model.vocab_size", apply_on='instantiate')
         parser.link_arguments("data.dataset_stats", "model.dataset_stats", apply_on='instantiate')
         parser.link_arguments("model.batch_size", "data.batch_size", apply_on='parse')
-        parser.link_arguments("model.seq_len", "data.seq_len", apply_on='parse')
+        parser.link_arguments("model.max_seq_len", "data.max_seq_len", apply_on='parse')
 
         parser.add_optimizer_args(
             OPTIMIZER_REGISTRY.classes,
@@ -38,7 +38,12 @@ def main():
     exp_path = os.environ['EXP_PATH']
     run_name = exp_path.split('/')[-1]
 
-    wandbLogger = WandbLogger(save_dir=exp_path, project='language_modeling', name=run_name)
+    wandbLogger = WandbLogger(save_dir=exp_path,
+                              project='language_modeling',
+                              name=run_name,
+                              id=run_name,
+                              log_model='all')
+
     cli = MyLightningCLI(model, datum, trainer_defaults={
         'logger': wandbLogger,
         'default_root_dir': exp_path,

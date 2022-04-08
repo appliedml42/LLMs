@@ -8,7 +8,7 @@ import torch.optim
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY
 from pytorch_lightning.utilities.cli import instantiate_class
 from torch.nn import functional as F
-
+import numpy as np
 from models.transformer_modules import Embedding, Encoder
 
 
@@ -19,7 +19,7 @@ class GPT(plm.LightningModule):
                  vocab_size: int,
                  num_heads: int,
                  d_model: int,
-                 seq_len: int,
+                 max_seq_len: int,
                  dropout: float,
                  batch_size: int,
                  dataset_stats: Optional[dict] = None,
@@ -29,8 +29,8 @@ class GPT(plm.LightningModule):
                  ):
         super(GPT, self).__init__()
         self.save_hyperparameters()
-        self.embedding = Embedding(d_model, vocab_size, seq_len, enable_padding=True)
-        self.encoder = Encoder(num_layers, num_heads, d_model, dropout, seq_len, causal_mask=True)
+        self.embedding = Embedding(d_model, vocab_size, max_seq_len, enable_padding=True)
+        self.encoder = Encoder(num_layers, num_heads, d_model, dropout, max_seq_len, causal_mask=True)
         self.output = torch.nn.Linear(d_model, vocab_size)
 
     def forward(self, x, mask=None):
@@ -48,7 +48,7 @@ class GPT(plm.LightningModule):
         loss_matrix = einops.rearrange(F.cross_entropy(y_pred, y_true, reduction='none'),
                                        '(batch seq_len) -> batch seq_len',
                                        batch=self.hparams.batch_size,
-                                       seq_len=self.hparams.seq_len)
+                                       seq_len=self.hparams.max_seq_len)
         loss_matrix = loss_matrix * weight
 
         loss_overall = torch.sum(loss_matrix) / torch.sum(weight)
@@ -66,7 +66,7 @@ class GPT(plm.LightningModule):
         loss_matrix = einops.rearrange(F.cross_entropy(y_pred, y_true, reduction='none'),
                                        '(batch seq_len) -> batch seq_len',
                                        batch=self.hparams.batch_size,
-                                       seq_len=self.hparams.seq_len)
+                                       seq_len=self.hparams.max_seq_len)
 
         # Make this more elegant :)
         losses = defaultdict(float)
@@ -86,7 +86,7 @@ class GPT(plm.LightningModule):
             if counts[dataset] == 0:
                 continue
             loss = loss / counts[dataset]
-            bpb = loss * dataset_stats['num_nz_tokens'][dataset]/float(dataset_stats['num_utf8_bytes'][dataset])
+            bpb = loss * dataset_stats['num_tokens'][dataset] / float(dataset_stats['num_utf8_bytes'][dataset])
             pile_loss += weights[dataset] * loss
             pile_bpb += weights[dataset] * bpb
             output[dataset] = loss
@@ -94,13 +94,13 @@ class GPT(plm.LightningModule):
                 self.log(f'Validation/{dataset}/loss', loss, on_step=False, on_epoch=True,
                          sync_dist=False,
                          batch_size=self.hparams.batch_size, rank_zero_only=True)
-                self.log(f'Validation/{dataset}/BPB', bpb, on_step=False, on_epoch=True,
+                self.log(f'Validation/{dataset}/BPB', bpb / np.log(2), on_step=False, on_epoch=True,
                          sync_dist=False,
                          batch_size=self.hparams.batch_size, rank_zero_only=True)
 
         self.log('Validation/loss', pile_loss, on_step=False, on_epoch=True, sync_dist=True,
                  batch_size=self.hparams.batch_size)
-        self.log('Validation/BPB', pile_bpb, on_step=False, on_epoch=True, sync_dist=True,
+        self.log('Validation/BPB', pile_bpb / np.log(2), on_step=False, on_epoch=True, sync_dist=True,
                  batch_size=self.hparams.batch_size)
 
     def configure_optimizers(self):
