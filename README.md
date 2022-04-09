@@ -8,7 +8,6 @@ implementations. However, I decided to implement my own language models on the P
 * Justify buying [this](https://bizon-tech.com/bizon-z5000.html) at some point 🤑.
 
 # Experiments & Documentation
-- [Notes](https://appliedml42.github.io)
 - [Wandb](https://wandb.ai/appliedml42/language_modeling?workspace=user-appliedml42)
 
 # Tasks
