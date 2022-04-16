@@ -6,7 +6,9 @@ import os
 
 from pytorch_lightning import LightningDataModule, LightningModule
 from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.utilities.cli import MODEL_REGISTRY, DATAMODULE_REGISTRY, OPTIMIZER_REGISTRY, LightningCLI, LR_SCHEDULER_REGISTRY
+from pytorch_lightning.utilities.cli import MODEL_REGISTRY, DATAMODULE_REGISTRY, OPTIMIZER_REGISTRY, LightningCLI, \
+    LR_SCHEDULER_REGISTRY
+
 import data
 import models
 
