@@ -13,9 +13,12 @@ implementations. However, I decided to implement my own language models on the P
 # Tasks
 I work on this when I have free time.
 - [ ] Publish post, Perplexity: A Information Theoritic Viewpoint.
-- [ ] Publish post, Transformer Training Stability: Role of Layer Normalization.
 - [ ] Publish post, 1 TB Random Access Dataset using Sqlite3 and ZSTD.
 - [ ] Update project post, Learning from Implementing Multi-GPU Training in Pytorch Lightning.
+- [ ] Trigger training using mixed precision. 
+- [ ] Generate sample texts from Carolyn_Mayo.
+- [ ] Generate BPB metrics on Carolyn_Mayo.
+- [ ] Publish post, Transformer Training Stability.
 - [x] Add context to partial documents. Partial documents arise when we split the original document to truncate.
 - [x] Add log 2 adjustment to metrics computation.
 - [x] Upgrade to Pytorch Lightning 1.6.0
