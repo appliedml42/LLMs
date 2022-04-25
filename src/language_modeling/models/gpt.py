@@ -9,7 +9,7 @@ from pytorch_lightning.utilities.cli import MODEL_REGISTRY
 from pytorch_lightning.utilities.cli import instantiate_class
 from torch.nn import functional as F
 import numpy as np
-from models.transformer_modules import Embedding, Encoder
+from .transformer_modules import Embedding, Encoder
 
 
 @MODEL_REGISTRY
