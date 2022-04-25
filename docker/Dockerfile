@@ -26,6 +26,12 @@ ENV PATH /app/.local/bin:$PATH
 # Install other requirements
 RUN pip install --trusted-host pypi.python.org -r ./requirements.txt
 
+# Install lm_dataformat
+RUN git clone https://github.com/leogao2/lm_dataformat.git
+WORKDIR lm_dataformat
+RUN python setup.py install --user
+WORKDIR /app
+
 # Install OpenMPI
 RUN sudo mv /usr/local/mpi /usr/local/bk_mpi
 RUN wget https://download.open-mpi.org/release/open-mpi/v4.0/openmpi-4.0.0.tar.gz

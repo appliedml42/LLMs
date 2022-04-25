@@ -7,3 +7,5 @@ zstd
 pyyaml
 fairscale
 pytorch-lightning==1.6.0
+best_download
+
