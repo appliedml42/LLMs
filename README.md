@@ -17,7 +17,7 @@ I work on this when I have free time.
 - [ ] Update project post, Learning from Implementing Multi-GPU Training in Pytorch Lightning.
 - [ ] Trigger training using mixed precision. 
 - [ ] Publish post, Transformer Training Stability.
-- [ ] Generate BPB test metrics on Carolyn_Mayo and add to Wand report.
+- [x] Generate BPB test metrics on Carolyn_Mayo and add to Wand.
 - [x] Fork from EleutherAI/lm_perplexity and adjust to generate test metrics.
 - [x] Implement text generation script.
 - [x] Add context to partial documents. Partial documents arise when we split the original document to truncate.
