@@ -1,9 +1,12 @@
 """
 Script to for training and evaluation.
 """
+import logging
+# Silence PLM warnings
+logging.getLogger().setLevel(logging.ERROR)
 
 import os
-
+import wandb
 from pytorch_lightning import LightningDataModule, LightningModule
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY, DATAMODULE_REGISTRY, OPTIMIZER_REGISTRY, LightningCLI, \
@@ -40,10 +43,10 @@ def main():
     exp_path = os.environ['EXP_PATH']
     run_name = exp_path.split('/')[-1]
 
+    wandb.finish()  # Shutdown earlier runs
     wandbLogger = WandbLogger(save_dir=exp_path,
                               project='language_modeling',
                               name=run_name,
-                              id=run_name,
                               log_model='all')
 
     cli = MyLightningCLI(model, datum, trainer_defaults={

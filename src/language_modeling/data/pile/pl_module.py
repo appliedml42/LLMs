@@ -102,13 +102,9 @@ class Pile(LightningDataModule):
         with open(os.path.join(self.path, 'val', f'{self.max_seq_len}_{self.context_len}_stats.pickle'),
                   'rb') as handle:
             self.dataset_stats['val'] = pickle.load(handle)
-        with open(os.path.join(self.path, 'test', f'{self.max_seq_len}_{self.context_len}_stats.pickle'),
-                  'rb') as handle:
-            self.dataset_stats['test'] = pickle.load(handle)
 
         self.train_dataset = None
         self.val_dataset = None
-        self.test_dataset = None
 
         self.save_hyperparameters()
 
@@ -127,23 +123,12 @@ class Pile(LightningDataModule):
                  x.endswith(f'{self.max_seq_len}_{self.context_len}.db')])
             self.val_dataset = PileRandomIODataset(val_paths, self.max_seq_len, self.tokenizer.pad_id())
 
-        if stage == 'test':
-            test_paths = sorted([os.path.join(self.path, 'test', x) for x in os.listdir(os.path.join(self.path, 'test'))
-                                 if x.endswith(f'{self.max_seq_len}_{self.context_len}.db')])
-            self.test_dataset = PileRandomIODataset(test_paths, self.max_seq_len, self.tokenizer.pad_id())
-
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         return DataLoader(self.train_dataset,
                           batch_size=self.batch_size,
                           num_workers=30,
                           drop_last=True,
                           shuffle=True)
-
-    def test_dataloader(self) -> EVAL_DATALOADERS:
-        return DataLoader(self.test_dataset,
-                          batch_size=self.batch_size,
-                          num_workers=30,
-                          drop_last=True)
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
         return DataLoader(self.val_dataset,

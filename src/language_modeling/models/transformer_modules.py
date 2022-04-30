@@ -1,8 +1,9 @@
+import math
+
+import einops
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import einops
-import math
 
 
 class PositionalEncoding(nn.Module):
@@ -62,12 +63,14 @@ class MultiHeadAttention(nn.Module):
         self.w_out.bias.data.fill_(0)
 
     def _apply_mask(self, attention_logits, padding_mask, causal_mask):
+        large_neg_value = -9e15 if attention_logits.dtype == torch.float32 else -1e4
+
         if padding_mask is not None:
             padding_mask = einops.rearrange(padding_mask, 'batch seq_len -> batch 1 1 seq_len')
-            attention_logits = attention_logits.masked_fill(padding_mask == 0, -9e15)
+            attention_logits = attention_logits.masked_fill(padding_mask == 0, large_neg_value)
 
         if causal_mask is not None:
-            attention_logits = attention_logits.masked_fill(causal_mask == 0, -9e15)
+            attention_logits = attention_logits.masked_fill(causal_mask == 0, large_neg_value)
 
         return attention_logits
 
@@ -153,7 +156,7 @@ class Encoder(nn.Module):
         if causal_mask:
             self.register_buffer('causal_mask_tensor',
                                  1 - torch.triu(torch.ones(seq_len, seq_len), diagonal=1),
-                                 persistent=False
+                                 persistent=False,
                                  )
 
     def forward(self, x, mask=None):
