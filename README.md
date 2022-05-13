@@ -14,7 +14,6 @@ implementations. However, I decided to implement my own language models on the P
 I work on this when I have free time.
 - [ ] Publish post, Perplexity: A Information Theoritic Viewpoint.
 - [ ] Publish post, 1 TB Random Access Dataset using Sqlite3 and ZSTD.
-- [ ] Update project post, Learning from Implementing Multi-GPU Training in Pytorch Lightning.
 - [x] Trigger training using mixed precision & gradient accumulation. 
 - [ ] Publish post, Transformer Training Stability.
 - [x] Generate BPB test metrics on Carolyn_Mayo and add to W&B.
