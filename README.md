@@ -13,7 +13,7 @@ implementations. However, I decided to implement my own language models on the P
 # Tasks
 I work on this when I have free time.
 - [ ] Publish post, Perplexity: A Information Theoritic Viewpoint.
-- [ ] Publish post, 1 TB Random Access Dataset using Sqlite3 and ZSTD.
+- [x] Publish post, 1 TB Random Access Dataset using Sqlite3 and ZSTD.
 - [x] Trigger training using mixed precision & gradient accumulation. 
 - [ ] Publish post, Transformer Training Stability.
 - [x] Generate BPB test metrics on Carolyn_Mayo and add to W&B.
