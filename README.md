@@ -18,7 +18,7 @@ I work on this when I have free time
 - [ ] Migrate to Shampoo optimizer.
 - [ ] Add dataset files to the prepare_data.py script.
 - [ ] Publish post, Perplexity: A Information Theoritic Viewpoint.
-- [x] Publish post, 1 TB Random Access Dataset using Sqlite3 and ZSTD.
+- [x] [Publish post, 1 TB Random Access Dataset using Sqlite3 and ZSTD.](https://wandb.ai/appliedml42/language_modeling/reports/Pytorch-Map-style-Dataset-for-800-GB-Text-Data--VmlldzoyMDk3NDgx)
 - [x] Trigger training using mixed precision & gradient accumulation. 
 - [ ] Publish post, Transformer Training Stability.
 - [x] Generate BPB test metrics on Carolyn_Mayo and add to W&B.
