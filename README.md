@@ -11,7 +11,8 @@ implementations. However, I decided to implement my own language models on the P
 - [Wandb](https://wandb.ai/appliedml42/language_modeling?workspace=user-appliedml42)
 
 # Tasks
-I work on this when I have free time.
+I work on this when I have free time
+- [ ] For validation data, only publish validation loss & perplexity.
 - [ ] Setup pre-training on dataset containing Pile[USPTO Backgrounds, Open Subtitles, and Wikipedia en].
 - [ ] Read the [Training Compute-Optimal Large Language Models](https://arxiv.org/pdf/2203.15556.pdf) to setup a optimized model
 - [ ] Migrate to Shampoo optimizer.
