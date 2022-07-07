@@ -12,11 +12,10 @@ implementations. However, I decided to implement my own language models on the P
 
 # Tasks
 I work on this when I have free time
-- [ ] For validation data, only publish validation loss & perplexity.
+- [x] For validation data, only publish validation loss & perplexity.
 - [ ] Setup pre-training on dataset containing Pile[USPTO Backgrounds, Open Subtitles, and Wikipedia en].
-- [ ] Read the [Training Compute-Optimal Large Language Models](https://arxiv.org/pdf/2203.15556.pdf) to setup a optimized model
-- [ ] Migrate to Shampoo optimizer.
-- [ ] Add dataset files to the prepare_data.py script.
+- [x] Read the [Training Compute-Optimal Large Language Models](https://arxiv.org/pdf/2203.15556.pdf) to setup a optimized model
+- [x] Add dataset files to the prepare_data.py script.
 - [ ] Publish post, Perplexity: A Information Theoritic Viewpoint.
 - [x] [Publish post, 1 TB Random Access Dataset using Sqlite3 and ZSTD.](https://wandb.ai/appliedml42/language_modeling/reports/Pytorch-Map-style-Dataset-for-800-GB-Text-Data--VmlldzoyMDk3NDgx)
 - [x] Trigger training using mixed precision & gradient accumulation. 

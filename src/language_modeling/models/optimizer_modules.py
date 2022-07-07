@@ -5,10 +5,7 @@ from pytorch_lightning.utilities.cli import LR_SCHEDULER_REGISTRY
 
 @LR_SCHEDULER_REGISTRY
 class CosineWarmupScheduler(optim.lr_scheduler._LRScheduler):
-    def __init__(self,
-                 optimizer,
-                 warmup: int,
-                 total_steps: int):
+    def __init__(self, optimizer, warmup: int, total_steps: int):
         self.warmup = warmup
         self.total_steps = total_steps
         super(CosineWarmupScheduler, self).__init__(optimizer)

@@ -13,7 +13,7 @@ RUN apt-get update && sudo apt-get install -y libnccl2=2.11.4-1+cuda11.4 libnccl
     build-essential pkg-config libgoogle-perftools-dev
 
 # Setup user
-RUN useradd --uid 1000 --shell /bin/bash appliedml85
+RUN useradd --uid 1000 --shell /bin/bash appliedml42
 RUN usermod -aG sudo appliedml85
 RUN echo "appliedml85 ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 ADD . /app

@@ -26,29 +26,14 @@ def get_rolling_token_windows(token_list, prefix_token, max_seq_len, context_len
 
     # Special handling for first window: predict all tokens
     first_seq_len = min(max_seq_len, len(token_list))
-    yield (
-        [prefix_token] + token_list[:first_seq_len - 1],
-        token_list[:first_seq_len]
-    )
+    yield ([prefix_token] + token_list[: first_seq_len - 1], token_list[:first_seq_len])
     predicted += first_seq_len
 
     while predicted < len(token_list):
         window_pred_len = min(len(token_list) - predicted, pred_len)
         window_end = predicted + window_pred_len
         yield (
-            token_list[window_end - max_seq_len - 1:window_end - 1],
-            token_list[window_end - window_pred_len:window_end],
+            token_list[window_end - max_seq_len - 1 : window_end - 1],
+            token_list[window_end - window_pred_len : window_end],
         )
         predicted += window_pred_len
-
-
-def compute_seq_and_weight(seq, y_start, max_seq_len, pad_id):
-    y_len = len(seq) - y_start
-    seq_len = len(seq)
-    weight = [0] * y_start + [1] * y_len
-
-    adj_max_seq_len = max_seq_len + 1
-    seq = seq + [pad_id] * (adj_max_seq_len - seq_len)
-    weight += [0] * (adj_max_seq_len - seq_len)
-
-    return seq, weight

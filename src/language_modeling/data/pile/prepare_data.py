@@ -1,166 +1,155 @@
 import argparse
+import io
 import json
 import logging
 import os
-import pickle
 import sqlite3
-from collections import defaultdict
-from datetime import datetime
 from multiprocessing import Pool
-from utils import get_rolling_token_windows
+from typing import List, Optional
+
 import sentencepiece as spm
-import zstd
-from torch.utils.data import IterableDataset
+import zstandard
+
+from utils import get_rolling_token_windows
+
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(name)s -  %(message)s", level=logging.INFO
+)
 
 
 def get_args_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--path", type=str, required=True)
+    parser.add_argument("--read_directory", type=str, required=True)
+    parser.add_argument("--write_directory", type=str, required=True)
     parser.add_argument("--max_seq_len", type=int, required=True)
     parser.add_argument("--context_len", type=int, required=True)
     parser.add_argument("--tokenizer_path", type=str, required=True)
+    parser.add_argument("--datasets", type=str, required=False, default=None)
+
     return parser
 
 
-def worker(fpath: str, max_seq_len: int, context_len: int, tokenizer_path: str):
+def prepare_data_worker(
+    read_path: str,
+    write_path: str,
+    max_seq_len: int,
+    context_len: int,
+    tokenizer_path: str,
+    datasets: Optional[List[str]] = None,
+) -> None:
+    logging.info(f"Preparing data from {read_path}")
+
+    connection = sqlite3.connect(write_path)
+    cursor = connection.cursor()
+    cursor.execute(
+        "CREATE TABLE rows (id INTEGER PRIMARY KEY, dataset TEXT, seq BLOB, pred_start INTEGER)"
+    )
+
     tokenizer = spm.SentencePieceProcessor()
     tokenizer.load(tokenizer_path)
 
-    i = 0
-    num_tokens = defaultdict(float)
-    num_utf8_bytes = defaultdict(float)
-    num_rows = defaultdict(float)
-
-    dataset = PileFileDataset(fpath, max_seq_len, context_len, tokenizer)
-    for num_toks, num_utf8_byts, num_rws, dataset in dataset:
-        i += 1
-        num_tokens[dataset] += num_toks
-        num_utf8_bytes[dataset] += num_utf8_byts
-        num_rows[dataset] += num_rws
-
-    return dict(num_rows), dict(num_tokens), dict(num_utf8_bytes),
-
-
-class PileFileDataset(IterableDataset):
-    """
-    Used for generating statistics and RandomIO index.
-    """
-
-    def __init__(self, fpath: str, max_seq_len: int, context_len: int, tokenizer: spm.SentencePieceProcessor):
-        self.fpath = fpath
-        self.max_seq_len = max_seq_len
-        self.context_len = context_len
-        self.tokenizer = tokenizer
-        self.con = sqlite3.connect(f'{fpath}_{self.max_seq_len}_{self.context_len}.db')
-
-    def __iter__(self):
-        logging.warning(f'Starting {self.fpath}\n')
-        curr = self.con.cursor()
-        create_cmd = "CREATE TABLE rows (" \
-                     "idx INT PRIMARY KEY, " \
-                     "local_idx INT, " \
-                     "fpath TEXT, " \
-                     "dataset TEXT, " \
-                     "tokens BLOB, " \
-                     "y_start INT)"
-        curr.execute(create_cmd)
-        insert_cmd = "INSERT INTO rows VALUES (?, ?, ?, ?, ?, ?)"
-
+    with open(read_path, "rb") as fh:
+        dctx = zstandard.ZstdDecompressor()
+        data_stream = io.TextIOWrapper(dctx.stream_reader(fh), encoding="utf-8")
+        compressor = zstandard.ZstdCompressor()
         idx = 0
-        lines = 0
-        with open(self.fpath, 'r') as reader:
-            fkey = '/'.join(self.fpath.split('/')[-2:])
-            for line in reader:
-                obj = json.loads(line)
-                text = obj['text'].strip()
-                dataset = obj['meta']['pile_set_name']
-                ids = self.tokenizer.EncodeAsIds(text) + [self.tokenizer.PieceToId('[eod]')]
-                if len(ids) <= 2:
-                    continue
-                gen = get_rolling_token_windows(token_list=ids,
-                                                prefix_token=self.tokenizer.PieceToId('[eod]'),
-                                                max_seq_len=self.max_seq_len,
-                                                context_len=self.context_len)
+        for line in data_stream:
+            obj = json.loads(line)
 
-                local_idx = 0
-                for x, y in gen:
-                    seq = x + [y[-1]]
-                    y_start = len(seq) - len(y)
-                    seq = ' '.join(str(x) for x in seq)
-                    compressed_seq = zstd.compress(seq.encode(encoding='ASCII'))
-                    curr.execute(insert_cmd, (idx, local_idx, fkey, dataset, compressed_seq, y_start))
-                    local_idx += 1
-                    idx += 1
-                yield len(ids), len(text.encode(encoding='utf-8')), local_idx, dataset
-                lines += 1
-                if lines % 10000 == 0:
-                    logging.warning(
-                        f'Finished lines {lines} to produce rows {idx} of {self.fpath} timestamp {datetime.now()}\n')
-                    self.con.commit()
-            self.con.commit()
-            self.con.close()
-            logging.warning(f'Finished {self.fpath} with {lines}\n')
+            dataset = obj["meta"]["pile_set_name"]
+            if datasets is not None and dataset not in datasets:
+                continue
 
+            text = obj["text"].strip()
+            tokens = tokenizer.EncodeAsIds(text)
+            if len(tokens) <= 5:
+                continue
 
-def prepare_data(stage, path, max_seq_len, context_len, tokenizer_path):
-    paths = None
-    dpath = None
-    args = None
-    if stage == 'train':
-        dpath = os.path.join(path, 'train')
-        paths = [os.path.join(dpath, x) for x in os.listdir(dpath) if x.endswith('jsonl')]
-        args = [(fpath, max_seq_len, context_len, tokenizer_path) for fpath in paths]
-    elif stage == 'val':
-        dpath = os.path.join(path, 'val')
-        paths = [os.path.join(dpath, x) for x in os.listdir(dpath) if x.endswith('jsonl')]
-        args = [(fpath, max_seq_len, context_len, tokenizer_path) for fpath in paths]
-    elif stage == 'test':
-        dpath = os.path.join(path, 'test')
-        paths = [os.path.join(dpath, x) for x in os.listdir(dpath) if x.endswith('jsonl')]
-        args = [(fpath, max_seq_len, context_len, tokenizer_path) for fpath in paths]
-
-    paths = paths
-    with Pool(len(paths)) as p:
-        out = p.starmap(worker, args)
-        num_rows = defaultdict(float)
-        num_tokens = defaultdict(float)
-        num_utf8_bytes = defaultdict(float)
-
-        for nr, nt, nub in [(x[0], x[1], x[2]) for x in out]:
-            for k, v in nr.items():
-                num_rows[k] += v
-
-            for k, v in nt.items():
-                num_tokens[k] += v
-
-            for k, v in nub.items():
-                num_utf8_bytes[k] += v
-
-        stats = {
-            'stage': stage,
-            'max_seq_len': max_seq_len,
-            'context_len': context_len,
-            'tokenizer_path': tokenizer_path,
-            'num_rows': dict(num_rows),
-            'num_tokens': dict(num_tokens),
-            'num_utf8_bytes': dict(num_utf8_bytes),
-        }
-
-        logging.info(stats)
-
-        with open(os.path.join(dpath, f'{max_seq_len}_{context_len}_stats.pickle'), 'wb') as handle:
-            pickle.dump(stats, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            for input_tokens, pred_tokens in get_rolling_token_windows(
+                tokens, tokenizer.PieceToId("[eod]"), max_seq_len, context_len
+            ):
+                seq = input_tokens + pred_tokens[-1:]
+                pred_start = len(seq) - len(pred_tokens)
+                compressed_seq = compressor.compress(
+                    " ".join([str(x) for x in seq]).encode(encoding="ASCII")
+                )
+                cursor.execute(
+                    "INSERT INTO rows (id, dataset, seq, pred_start) VALUES (?, ?, ?, ?)",
+                    (idx, dataset, compressed_seq, pred_start),
+                )
+                idx += 1
+                if idx % 10000 == 0:
+                    logging.info(f"Added {idx} rows from {read_path}")
+    connection.commit()
+    connection.close()
+    logging.info(
+        f"Finished preparing data from {read_path} at {write_path} and produced {idx} rows"
+    )
 
 
-if __name__ == '__main__':
+def prepare_data(
+    read_directory: str,
+    write_directory: str,
+    stage: str,
+    max_seq_len: str,
+    context_len: str,
+    tokenizer_path: str,
+    datasets: Optional[List[str]] = None,
+):
+    logging.info(f"Preparing data from {read_directory} and stage {stage}")
+
+    read_directory = os.path.join(read_directory, stage)
+    read_paths = [
+        os.path.join(read_directory, x)
+        for x in os.listdir(read_directory)
+        if x.endswith(".jsonl.zst")
+    ]
+
+    write_directory = os.path.join(write_directory, stage)
+    os.makedirs(write_directory, exist_ok=True)
+    write_paths = [
+        os.path.join(write_directory, f"{x}.db")
+        for x in os.listdir(read_directory)
+        if x.endswith("jsonl.zst")
+    ]
+
+    args = [
+        (x, y, max_seq_len, context_len, tokenizer_path, datasets)
+        for x, y in zip(read_paths, write_paths)
+    ]
+
+    with Pool(os.cpu_count()) as p:
+        p.starmap(prepare_data_worker, args)
+
+    logging.info(f"Finished preparing data from {read_directory} and stage {stage}")
+
+
+if __name__ == "__main__":
     parser = get_args_parser()
-    cmd = parser.parse_args()
+    cfg = parser.parse_args()
 
-    logging.warning('Preparing data for validation')
-    prepare_data('val', cmd.path, cmd.max_seq_len, cmd.context_len, cmd.tokenizer_path)
+    if cfg.datasets is not None:
+        cfg.datasets = cfg.datasets.split(",")
 
-    logging.warning('Preparing data for test')
-    prepare_data('test', cmd.path, cmd.max_seq_len, cmd.context_len, cmd.tokenizer_path)
+    prepare_data(
+        cfg.read_directory,
+        cfg.write_directory,
+        "train",
+        cfg.max_seq_len,
+        cfg.context_len,
+        cfg.tokenizer_path,
+        cfg.datasets,
+    )
 
-    logging.warning('Preparing data for train')
-    prepare_data('train', cmd.path, cmd.max_seq_len, cmd.context_len, cmd.tokenizer_path)
+    prepare_data(
+        cfg.read_directory,
+        cfg.write_directory,
+        "val",
+        cfg.max_seq_len,
+        cfg.context_len,
+        cfg.tokenizer_path,
+        cfg.datasets,
+    )
+
+    with open(os.path.join(cfg.write_directory, "config.json"), "w") as fh:
+        json.dump(vars(cfg), fh)
