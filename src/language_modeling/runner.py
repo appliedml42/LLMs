@@ -58,7 +58,6 @@ def main():
         save_dir=exp_path,
         project="language_modeling",
         name=run_name,
-        log_model="all",
         group=group_name
     )
 

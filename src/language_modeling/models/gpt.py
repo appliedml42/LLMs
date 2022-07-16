@@ -45,6 +45,9 @@ class GPT(plm.LightningModule):
         x = self.output(x)
         return x
 
+    def on_train_start(self) -> None:
+        self.logger.watch(self, log='all')
+
     def training_step(self, batch, batch_idx):
         x, y_true, mask, weight, _ = batch
 
