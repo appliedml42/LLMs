@@ -11,9 +11,10 @@ implementations. However, I decided to implement my own language models on the P
 - [Wandb](https://wandb.ai/appliedml42/language_modeling?workspace=user-appliedml42)
 
 # Tasks
-I work on this when I have free time
+I work on this when I have free time.
+- [ ] Learn how to profile a model by exploring CUDA operations of the 2.6B model. 
 - [x] For validation data, only publish validation loss & perplexity.
-- [ ] Setup pre-training on dataset containing Pile[USPTO Backgrounds, Open Subtitles, and Wikipedia en].
+- [x] Setup pre-training on dataset containing Pile[USPTO Backgrounds, Open Subtitles, and Wikipedia en].
 - [x] Read the [Training Compute-Optimal Large Language Models](https://arxiv.org/pdf/2203.15556.pdf) to setup a optimized model
 - [x] Add dataset files to the prepare_data.py script.
 - [ ] Publish post, Perplexity: A Information Theoritic Viewpoint.
