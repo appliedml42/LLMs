@@ -14,13 +14,13 @@ RUN apt-get update && sudo apt-get install -y libnccl2=2.11.4-1+cuda11.4 libnccl
 
 # Setup user
 RUN useradd --uid 1000 --shell /bin/bash appliedml42
-RUN usermod -aG sudo appliedml85
-RUN echo "appliedml85 ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+RUN usermod -aG sudo appliedml42
+RUN echo "appliedml42 ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 ADD . /app
-RUN chown -R appliedml85 /app
+RUN chown -R appliedml42 /app
 ENV HOME /app
 WORKDIR /app
-USER appliedml85
+USER appliedml42
 ENV PATH /app/.local/bin:$PATH
 
 # Install other requirements
