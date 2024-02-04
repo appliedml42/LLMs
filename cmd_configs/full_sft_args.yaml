@@ -1,0 +1,8 @@
+model_name: microsoft/phi-1_5
+train_config: phi1_5_z7b_full
+cache_dir: /workspace/downloads/huggingface
+ckpt_dir: /workspace/concepts/LLMs/checkpoints
+experiment_dir: /workspace/concepts/LLMs/microsoft/phi/experiments
+num_proc: 32
+num_devices: 4
+precision: bf16-mixed
