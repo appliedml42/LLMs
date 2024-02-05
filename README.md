@@ -7,8 +7,8 @@ This repository organizes different implementations across different branches an
 
 | Branch Name | Description | Status |
 | ----------- | ----------- | ------ |
-| old_2022   | Early exploration of training Billion+ parameters LLMs using FDSP | Inactive |
-| microsoft/phi | Exploration of SFT and DPO on Small Language Models using microsoft/phi | Active|
+| [old_2022](https://github.com/appliedml42/LLMs/tree/old_2023)   | Early exploration of training Billion+ parameters LLMs using FDSP | Inactive |
+| [microsoft/phi](https://github.com/appliedml42/LLMs/tree/microsoft/phi) | Exploration of SFT and DPO on Small Language Models using microsoft/phi | Active|
 
 # References
 * [Github:nanoGPT](https://github.com/karpathy/nanoGPT)
