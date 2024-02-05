@@ -4,3 +4,10 @@ Various excellent open-source Large Language Model(LLM) repositories are availab
 
 Additionally, this is open-source, so that I can share it with the broader community.
 This repository organizes different implementations across different branches and does not strive to share code across these branches. The focus is on the techniques and concepts using simple code, not enhancing code reuse and supporting many different use cases in a single codebase. However, each branch strives to be well-designed.
+
+| Branch Name | Description | Status |
+| ----------- | ----------- | ------ |
+| old_2022   | Early exploration of training Billion+ parameters LLMs using FDSP | Inactive |
+| microsoft/phi | Exploration of SFT and DPO on Small Language Models using microsoft/phi | Active|
+
+# References
