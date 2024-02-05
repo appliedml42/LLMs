@@ -11,3 +11,7 @@ This repository organizes different implementations across different branches an
 | microsoft/phi | Exploration of SFT and DPO on Small Language Models using microsoft/phi | Active|
 
 # References
+* [Github:nanoGPT](https://github.com/karpathy/nanoGPT)
+* [Github:lit-gpt](https://github.com/Lightning-AI/lit-gpt)
+* [Github:TinyLlama](https://github.com/jzhang38/TinyLlama)
+* [Pytorch Blog:Accelerating LLM Inference in Pure Pytorch](https://pytorch.org/blog/accelerating-generative-ai-2)
