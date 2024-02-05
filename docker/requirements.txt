@@ -1,7 +1,0 @@
-sentencepiece
-wandb
-names
-einops
-jsonargparse[signatures]
-zstd
-pyyaml
