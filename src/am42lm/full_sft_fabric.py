@@ -1,39 +1,22 @@
-import functools
 import os
 import time
-from contextlib import nullcontext
 from dataclasses import dataclass
 
+import lightning as L
 import names
 import torch
-import torch.distributed as dist
-from am42lm.configs import (
-    AdamConfig,
-    AdamWConfig,
-    DatasetConfig,
-    ModelConfig,
-    TrainingConfig,
-)
-from am42lm.model import SLM, Block
-from am42lm.utils import bfloat_support
+import wandb
+from configs import AdamConfig, AdamWConfig, DatasetConfig, ModelConfig, TrainingConfig
 from datasets import concatenate_datasets, load_dataset
 from jsonargparse import ActionConfigFile, ArgumentParser
-from torch.distributed.fsdp import (
-    FullStateDictConfig,
-    MixedPrecision,
-    ShardingStrategy,
-    StateDictType,
-)
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
+from lightning.fabric.strategies import FSDPStrategy  # type: ignore
+from model import SLM, Block
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from torchmetrics import RunningMean
 from tqdm import tqdm
 from transformers import AutoTokenizer
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase as HFTokenizer
-
-import wandb
 
 
 @dataclass
@@ -43,12 +26,10 @@ class RunConfig:
     cache_dir: str
     ckpt_dir: str
     num_proc: int
+    num_devices: int
+    precision: str
     run_dir: str
     run_name: str
-    world_size: int
-    local_rank: int
-    use_mixed_precision: bool
-    use_fp16: bool
 
 
 def setup(parser: ArgumentParser):
@@ -61,20 +42,30 @@ def setup(parser: ArgumentParser):
     experiment_dir = args.experiment_dir
     run_name = args.run_name
     num_proc: int = args.num_proc
-    local_rank = int(os.environ.get("LOCAL_RANK", "0"))
-    world_size = int(os.environ.get("LOCAL_WORLD_SIZE", "1"))
-    use_mixed_precision = args.use_mixed_precision
-    use_fp16 = args.use_fp16
-
-    torch.manual_seed(42 + local_rank * 7)
+    num_devices: int = args.num_devices
+    precision = args.precision
 
     run_name = names.get_full_name().replace(" ", "_") if run_name is None else run_name
     run_dir = os.path.join(experiment_dir, run_name)
 
-    if local_rank == 0 and not os.path.exists(run_dir):
+    if num_devices > 1:
+        strategy = FSDPStrategy(
+            auto_wrap_policy={Block},
+            activation_checkpointing_policy={Block},
+            state_dict_type="full",
+            limit_all_gathers=True,
+            cpu_offload=False,
+        )
+    else:
+        strategy = "auto"
+
+    fabric = L.Fabric(devices=num_devices, strategy=strategy, precision=precision)
+    if fabric.local_rank == 0 and not os.path.exists(run_dir):
         os.makedirs(run_dir)
         with open(os.path.join(run_dir, "args.yaml"), "w") as f:
             f.write(parser.dump(args))
+
+    L.Fabric.seed_everything(42 + fabric.local_rank * 7)
 
     run_config = RunConfig(
         model_name=model_name,
@@ -82,51 +73,12 @@ def setup(parser: ArgumentParser):
         cache_dir=cache_dir,
         ckpt_dir=ckpt_dir,
         num_proc=num_proc,
+        num_devices=num_devices,
+        precision=precision,
         run_dir=run_dir,
         run_name=run_name,
-        world_size=world_size,
-        local_rank=local_rank,
-        use_mixed_precision=use_mixed_precision,
-        use_fp16=use_fp16,
     )
-
-    main(run_config)
-
-
-def maybe_init_dist():
-    rank = int(os.environ.get("LOCAL_RANK", "0"))
-    world_size = int(os.environ.get("LOCAL_WORLD_SIZE", "1"))
-    torch.cuda.set_device(rank)
-
-    if world_size < 2:
-        return None
-    else:
-        dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
-
-
-def get_policies(use_mixed_precision: bool, use_fp16: bool, rank: int):
-    mixed_precision_policy = None
-
-    if use_mixed_precision:
-        bfloat_available = bfloat_support()
-        if bfloat_available and not use_fp16:
-            mixed_precision_policy = MixedPrecision(
-                param_dtype=torch.bfloat16,
-                reduce_dtype=torch.bfloat16,
-                buffer_dtype=torch.bfloat16,
-            )
-        elif use_fp16:
-            mixed_precision_policy = MixedPrecision(
-                param_dtype=torch.float16,
-                reduce_dtype=torch.float16,
-                buffer_dtype=torch.float16,
-            )
-
-    model_auto_wrap = functools.partial(
-        transformer_auto_wrap_policy, transformer_layer_cls={Block}
-    )
-
-    return mixed_precision_policy, model_auto_wrap
+    fabric.launch(main, run_config)  # type: ignore
 
 
 def get_tokenizer(model_name: str, ckpt_dir: str, chat_template: str):
@@ -154,8 +106,7 @@ def configure_dataloaders(
     num_proc: int,
     tokenizer: HFTokenizer,
     micro_batch_size: int,
-    local_rank: int,
-    world_size: int,
+    fabric: L.Fabric,
     use_distributed_sampler: bool = True,
 ):
     datasets = []
@@ -178,11 +129,11 @@ def configure_dataloaders(
     sampler = (
         DistributedSampler(
             combined_dataset,
-            rank=local_rank,
-            num_replicas=world_size,
+            rank=fabric.local_rank,
+            num_replicas=fabric.world_size,
             shuffle=shuffle,
         )
-        if world_size > 1 and use_distributed_sampler
+        if fabric.world_size > 1 and use_distributed_sampler
         else None
     )
 
@@ -208,49 +159,29 @@ def configure_dataloaders(
         sampler=sampler,
         shuffle=shuffle if sampler is None else False,
         drop_last=True,
-        pin_memory=True,
     )
 
 
-def get_model(run_config: RunConfig):
-    model_name = run_config.model_name
+def get_model(model_name: str, ckpt_dir: str, run_dir: str, fabric: L.Fabric):
     config: ModelConfig = ModelConfig.get_config(model_name)
+    finetuned_model_path = os.path.join(run_dir, "model.pt")
+    checkpoint_path = os.path.join(ckpt_dir, model_name, "am42_pytorch_model.bin")
 
-    if os.path.exists(os.path.join(run_config.run_dir, "am42_pytorch_model.bin")):
-        checkpoint_path = os.path.join(run_config.run_dir, "am42_pytorch_model.bin")
-    else:
-        checkpoint_path = os.path.join(
-            run_config.ckpt_dir, run_config.model_name, "am42_pytorch_model.bin"
-        )
-
-    checkpoint = torch.load(checkpoint_path, mmap=True, weights_only=True)
-    model = SLM(config)
-    model.load_state_dict(checkpoint, strict=True)
+    with fabric.init_module(empty_init=fabric.world_size > 1):
+        model = SLM(config)
     model = torch.compile(model)
-
-    if run_config.world_size > 1:
-        mixed_precision_policy, model_auto_wrap_policy = get_policies(
-            use_mixed_precision=run_config.use_mixed_precision,
-            use_fp16=run_config.use_fp16,
-            rank=run_config.local_rank,
-        )
-        model = FSDP(
-            model,  # type: ignore
-            auto_wrap_policy=model_auto_wrap_policy,
-            mixed_precision=mixed_precision_policy,
-            sharding_strategy=ShardingStrategy.FULL_SHARD,
-            device_id=torch.cuda.current_device(),
-            limit_all_gathers=True,
-            use_orig_params=True,
-        )
+    model = fabric.setup_module(model)  # type: ignore
+    if os.path.exists(finetuned_model_path):
+        print(f"Loading finetuned model from {finetuned_model_path}")
+        fabric.load(finetuned_model_path, {"model": model})
     else:
-        print("Using single GPU.")
-        model = model.to(torch.cuda.current_device())
-
+        print(f"Loading model from {checkpoint_path}")
+        fabric.load_raw(checkpoint_path, model, strict=True)
     return model
 
 
 def train(
+    fabric: L.Fabric,
     training_config: TrainingConfig,
     model: SLM,
     optimizer: torch.optim.Optimizer,
@@ -258,8 +189,6 @@ def train(
     run_name: str,
     train_dl: DataLoader,
     tokenizer: HFTokenizer,
-    local_rank: int,
-    world_size: int,
     val_dl: DataLoader | None = None,
 ):
     total_iters = training_config.num_epochs * len(train_dl)
@@ -278,7 +207,7 @@ def train(
         milestones=[warmup_steps],
     )
 
-    if local_rank == 0:
+    if fabric.local_rank == 0:
         inner_pbar = tqdm(
             range(total_iters),
             colour="green",
@@ -300,13 +229,13 @@ def train(
 
     update_step = 0
     iter_num = 0
+
     running_loss = RunningMean(
         window=int(training_config.gradient_accumulation_iters), sync_on_compute=False
-    ).to(torch.cuda.current_device())
+    ).to(fabric.device)
 
-    model.train()
     for epoch in range(training_config.num_epochs):
-        if world_size > 1:
+        if fabric.world_size > 1:
             train_dl.sampler.set_epoch(epoch)  # type: ignore
 
         for input_ids, attn_mask in train_dl:
@@ -317,20 +246,22 @@ def train(
                 iter_num % training_config.gradient_accumulation_iters != 0
             )
 
-            x = input_ids[:, :-1].to(torch.cuda.current_device())
-            y = input_ids[:, 1:].reshape(-1).to(torch.cuda.current_device())
-            mask = attn_mask[:, 1:].reshape(-1).bool().to(torch.cuda.current_device())
+            x = input_ids[:, :-1]
+            x = fabric.to_device(x.pin_memory())
 
-            if world_size > 1 and is_accumulating:
-                context_manager = model.no_sync()
-            else:
-                context_manager = nullcontext()
+            y = input_ids[:, 1:]
+            y = y.reshape(-1)
+            y = fabric.to_device(y.pin_memory())
 
-            with context_manager:
+            mask = attn_mask[:, 1:]
+            mask = mask.reshape(-1).bool()
+            mask = fabric.to_device(mask.pin_memory())
+
+            with fabric.no_backward_sync(model, enabled=is_accumulating):  # type: ignore
                 logits = model(x)
                 logits = logits.reshape(-1, logits.size(-1))
                 loss = loss_fn(logits, y, mask)
-                loss.backward(loss / training_config.gradient_accumulation_iters)
+                fabric.backward(loss / training_config.gradient_accumulation_iters)
 
             if not is_accumulating:
                 optimizer.step()
@@ -339,16 +270,13 @@ def train(
                 update_step += 1
 
                 if update_step % training_config.val_log_step_interval == 0:
-                    val_loss = validate(
-                        model, tokenizer, local_rank, world_size, val_dl
-                    )
-                    if local_rank == 0:
+                    val_loss = validate(fabric, model, tokenizer, val_dl)
+                    if fabric.local_rank == 0:
                         metrics["val/loss"] = val_loss.item()  # type: ignore
 
             iter_num += 1
-            if local_rank == 0:
-                loss = loss.detach()
-                running_loss.update(loss)
+            if fabric.local_rank == 0:
+                running_loss.update(loss.detach())
 
                 metrics["train/loss"] = running_loss.compute().item()
                 metrics["train/learning_rate"] = optimizer.param_groups[0]["lr"]
@@ -358,7 +286,7 @@ def train(
                     iter_num
                     * training_config.micro_batch_size
                     * model.config.block_size
-                    * world_size
+                    * fabric.world_size
                 )
                 metrics["train/iter_time"] = time.perf_counter() - iter_t_start
                 metrics["train/percent_done"] = 100 * iter_num / total_iters
@@ -368,22 +296,22 @@ def train(
                 inner_pbar.set_description(  # type: ignore
                     f"loss {metrics['train/loss']:.4f} epoch {epoch + 1}/{training_config.num_epochs} step {update_step}/{total_steps} accumulating {is_accumulating}"
                 )
-            if world_size > 1:
-                dist.barrier()
+            fabric.barrier()
 
-    if local_rank == 0:
+    if fabric.local_rank == 0:
         wandb.finish()
         inner_pbar.close()  # type: ignore
 
-    save_model(model, tokenizer, local_rank, run_dir)
+    save_path = os.path.join(run_dir, "model.pt")
+    fabric.print(f"Saving model to {save_path}")
+    fabric.save(save_path, {"model": model})
 
 
 @torch.no_grad()
 def validate(
+    fabric: L.Fabric,
     model: SLM,
     tokenizer: HFTokenizer,
-    local_rank: int,
-    world_size: int,
     valid_dl: DataLoader | None = None,
 ):
     if valid_dl is None:
@@ -399,23 +327,26 @@ def validate(
     total_steps = len(valid_dl)
 
     model.eval()
-    losses = torch.zeros(len(valid_dl), device=torch.cuda.current_device())
+    losses = torch.zeros(len(valid_dl), device=fabric.device)
 
     inner_pbar = None
-    if local_rank == 0:
+    if fabric.local_rank == 0:
         inner_pbar = tqdm(
             range(total_steps),
             colour="yellow",
         )
 
     for i, (input_ids, attn_mask) in enumerate(valid_dl):
-        x = input_ids[:, :-1].to(torch.cuda.current_device())
+        x = input_ids[:, :-1]
+        x = fabric.to_device(x.pin_memory())
 
         y = input_ids[:, 1:]
-        y = y.reshape(-1).to(torch.cuda.current_device())
+        y = y.reshape(-1)
+        y = fabric.to_device(y.pin_memory())
 
         mask = attn_mask[:, 1:]
-        mask = mask.reshape(-1).bool().to(torch.cuda.current_device())
+        mask = mask.reshape(-1).bool()
+        mask = fabric.to_device(mask.pin_memory())
 
         logits = model(x)
 
@@ -423,43 +354,27 @@ def validate(
         loss = loss_fn(logits, y, mask)
 
         losses[i] = loss.detach().item()
-        if local_rank == 0:
+        if fabric.local_rank == 0:
             inner_pbar.update(1)  # type: ignore
             inner_pbar.set_description(  # type: ignore
                 f"Step {i + 1}/{total_steps}"
             )
 
-    if local_rank == 0:
+    if fabric.local_rank == 0:
         inner_pbar.close()  # type: ignore
 
-    dist.all_reduce(losses, op=dist.ReduceOp.SUM)
-    dist.barrier()
-    num = losses.sum()  # type: ignore
-    den = world_size * losses.size(0)  # type: ignore
+    loss = fabric.all_reduce(losses, reduce_op="sum")
+    fabric.barrier()
+    num = loss.sum()  # type: ignore
+    den = fabric.world_size * loss.size(0)  # type: ignore
     loss = num / den
 
     model.train()
     return loss
 
 
-def save_model(model: SLM, tokenizer: HFTokenizer, local_rank: int, run_dir: str):
-    fullstate_save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
-
-    with FSDP.state_dict_type(
-        model, StateDictType.FULL_STATE_DICT, fullstate_save_policy
-    ):
-        cpu_state_dict = model.state_dict()
-
-    if local_rank == 0:
-        checkpoint_save_path = os.path.join(run_dir, "am42_pytorch_model.bin")
-        torch.save(cpu_state_dict, checkpoint_save_path)
-
-        tokenizer.save_pretrained(os.path.join(run_dir, "tokenizer"))
-
-
-def main(run_config: RunConfig):
+def main(fabric: L.Fabric, run_config: RunConfig):
     _train_config = TrainingConfig.get_config(run_config.train_config)
-    maybe_init_dist()
     tokenizer = get_tokenizer(
         run_config.model_name, run_config.ckpt_dir, _train_config.chat_template
     )
@@ -470,9 +385,8 @@ def main(run_config: RunConfig):
         num_proc=run_config.num_proc,
         shuffle=True,
         tokenizer=tokenizer,
+        fabric=fabric,
         micro_batch_size=_train_config.micro_batch_size,
-        local_rank=run_config.local_rank,
-        world_size=run_config.world_size,
     )
 
     val_dl = None
@@ -483,12 +397,13 @@ def main(run_config: RunConfig):
             num_proc=run_config.num_proc,
             shuffle=False,
             tokenizer=tokenizer,
+            fabric=fabric,
             micro_batch_size=_train_config.micro_batch_size,
-            local_rank=run_config.local_rank,
-            world_size=run_config.world_size,
         )
 
-    model = get_model(run_config)
+    model = get_model(
+        run_config.model_name, run_config.ckpt_dir, run_config.run_dir, fabric
+    )
 
     if isinstance(_train_config.optimizer, AdamConfig):
         optimizer = torch.optim.Adam(
@@ -503,7 +418,10 @@ def main(run_config: RunConfig):
     else:
         raise ValueError(f"Unknown optimizer: {_train_config.optimizer}")
 
+    optimizer = fabric.setup_optimizers(optimizer)
+
     train(
+        fabric=fabric,
         training_config=_train_config,
         model=model,  # type: ignore
         optimizer=optimizer,  # type: ignore
@@ -512,11 +430,7 @@ def main(run_config: RunConfig):
         run_dir=run_config.run_dir,
         run_name=run_config.run_name,
         tokenizer=tokenizer,
-        local_rank=run_config.local_rank,
-        world_size=run_config.world_size,
     )
-
-    dist.destroy_process_group()
 
 
 if __name__ == "__main__":
@@ -540,7 +454,8 @@ if __name__ == "__main__":
     )
     parser.add_argument("--run_name", type=str, default=None)
     parser.add_argument("--num_proc", type=int, default=32)
-    parser.add_argument("--use_mixed_precision", action="store_true", default=True)
-    parser.add_argument("--use_fp16", action="store_true", default=False)
+    parser.add_argument("--num_devices", type=int, default=1)
+    parser.add_argument("--precision", type=str, default="bf16-mixed")
     parser.add_argument("--config", action=ActionConfigFile)
+
     setup(parser)

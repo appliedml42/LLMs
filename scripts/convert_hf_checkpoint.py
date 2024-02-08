@@ -2,8 +2,6 @@ import os
 from collections import defaultdict
 
 import torch
-from am42.language_modeling.configs import ModelConfig
-from am42.language_modeling.model import SLM
 from huggingface_hub import snapshot_download
 from jsonargparse import CLI
 
@@ -85,12 +83,6 @@ def convert_hf_checkpoint(repo_id, model_dir):
         new_state_dict[f"transformer.h.{layer_num}.attn.attn.weight"] = qkv_weight
         new_state_dict[f"transformer.h.{layer_num}.attn.attn.bias"] = qkv_bias
 
-    model_config = ModelConfig.get_config(repo_id)
-    model = SLM(model_config)
-    model.load_state_dict(new_state_dict, strict=True, assign=True)
-    # Compile and then save the model. This is necessary because post compilation parameter names are changed.
-    # Also, we use Fabric which prefers loading weights post compilation. So this makes life easy.
-    model = torch.compile(model)
     torch.save(new_state_dict, os.path.join(model_dir, "am42_pytorch_model.bin"))
 
 
@@ -112,4 +104,4 @@ def main(
 
 
 if __name__ == "__main__":
-    CLI(main)
+    CLI(main, as_positional=False)

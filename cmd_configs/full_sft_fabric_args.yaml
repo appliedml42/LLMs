@@ -4,5 +4,4 @@ cache_dir: /workspace/downloads/huggingface
 ckpt_dir: /workspace/LLMs/checkpoints
 experiment_dir: /workspace/LLMs/experiments
 num_proc: 32
-use_mixed_precision: True
-use_fp16: False
+num_devices: 4

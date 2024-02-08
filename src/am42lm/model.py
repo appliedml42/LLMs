@@ -5,9 +5,8 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from am42lm.configs import ModelConfig
 from torch.distributed import _functional_collectives as funcol
-
-from .configs import ModelConfig
 
 
 class SLM(nn.Module):

@@ -230,4 +230,4 @@ def main(
 
 if __name__ == "__main__":
     torch.manual_seed(42)
-    CLI(main)
+    CLI(main, as_positional=False)

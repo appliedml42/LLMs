@@ -1,5 +1,14 @@
+#wandb
+wandb
+
 # history
 .history
+
+# checkpoints
+checkpoints
+
+# experiments
+experiments
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
