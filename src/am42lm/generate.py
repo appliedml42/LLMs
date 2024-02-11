@@ -1,5 +1,4 @@
 import itertools
-import json
 import os
 import time
 
@@ -11,6 +10,7 @@ from jsonargparse import CLI
 from model import SLM
 from tokenizers import Tokenizer as HFTokenizer
 from torch.nn import functional as F
+from transformers import AutoTokenizer
 
 
 def sample(logits, temperature: float = 1.0, top_k: int | None = None):
@@ -37,6 +37,7 @@ def decode_n_token(
     curr_token: torch.Tensor,
     input_pos: torch.Tensor,
     num_new_tokens: int,
+    eos_token_id: int,
     **sampling_kwargs,
 ):
     new_tokens = []
@@ -45,6 +46,8 @@ def decode_n_token(
         input_pos += 1
         new_tokens.append(new_token.clone())
         curr_token = new_token.view(1, -1)
+        if new_token == eos_token_id:
+            break
 
     return new_tokens
 
@@ -56,17 +59,8 @@ def prefill(
     return sample(logits, **sampling_kwargs)[0]
 
 
-def get_tokenizer(model_name: str, ckpt_dir: str):
-    tokenizer_path = os.path.join(ckpt_dir, "tokenizer.json")
-    tokenizer = HFTokenizer.from_file(tokenizer_path)
-
-    special_tokens_path = os.path.join(ckpt_dir, "tokenizer_config.json")
-    with open(special_tokens_path) as fp:
-        config = json.load(fp)
-    bos_token = config.get("bos_token")
-    eos_token = config.get("eos_token")
-
-    return tokenizer, bos_token, eos_token
+def get_tokenizer(ckpt_dir: str) -> HFTokenizer:
+    return AutoTokenizer.from_pretrained(ckpt_dir)  # type: ignore
 
 
 def get_model(
@@ -82,10 +76,13 @@ def get_model(
     checkpoint = torch.load(
         os.path.join(ckpt_dir, "am42_pytorch_model.bin"), mmap=True, weights_only=True
     )
-    model.load_state_dict(checkpoint, assign=True)
+    new_state_dict = {}
+    for k, v in checkpoint.items():
+        new_state_dict[k.replace("_orig_mod.", "")] = v
+    model.load_state_dict(new_state_dict, assign=True, strict=True)
 
     if use_tp:
-        # apply_tp(model)
+
         def apply_custom_method(module):
             if hasattr(module, "apply_tensor_parallel"):
                 module.apply_tensor_parallel()
@@ -111,6 +108,7 @@ def generate(
     model: SLM,
     prompt: torch.Tensor,
     max_new_tokens: int,
+    eos_token_id: int,
     **sampling_kwargs,
 ):
     T = prompt.size(0)
@@ -132,11 +130,17 @@ def generate(
     input_pos = torch.tensor([T], device=device)
 
     generated_tokens = decode_n_token(
-        model, next_token.view(1, -1), input_pos, max_new_tokens - 1, **sampling_kwargs
+        model,
+        next_token.view(1, -1),
+        input_pos,
+        max_new_tokens - 1,
+        eos_token_id,
+        **sampling_kwargs,
     )
-    seq[T + 1 :] = torch.cat(generated_tokens)
 
-    return seq
+    seq[T : T + len(generated_tokens)] = torch.cat(generated_tokens)
+
+    return seq[: T + len(generated_tokens)]
 
 
 def maybe_init_dist() -> int | None:
@@ -154,7 +158,7 @@ def maybe_init_dist() -> int | None:
 def main(
     model_name: str,
     ckpt_dir: str,
-    prompt: str = "Hello, my name is",
+    prompt: list[dict[str, str]],
     compile: bool = False,
     compile_prefill: bool = False,
     num_samples: int = 5,
@@ -176,10 +180,12 @@ def main(
     precision = torch.bfloat16
 
     model = get_model(model_name, ckpt_dir, device, precision, use_tp)
-    tokenizer, bos_token, eos_token = get_tokenizer(model_name, ckpt_dir)
+    tokenizer = get_tokenizer(ckpt_dir)
 
-    encoded_prompt = encode(tokenizer, prompt, device, True, bos_token)
+    encoded_prompt = tokenizer.apply_chat_template(prompt, return_tensors="pt")  # type: ignore
+    encoded_prompt = encoded_prompt.view(-1).to(device=device, dtype=torch.int)
     prompt_length = encoded_prompt.size(0)
+
     model_size = sum(
         [
             p.numel() * p.dtype.itemsize
@@ -207,6 +213,7 @@ def main(
             max_new_tokens,
             top_k=top_k,
             temperature=temperature,
+            eos_token_id=tokenizer.eos_token_id,  # type: ignore
         )
         torch.cuda.synchronize()
         t = time.perf_counter() - t0

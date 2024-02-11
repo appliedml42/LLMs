@@ -36,8 +36,8 @@ class TrainingConfig:
 
     @staticmethod
     def get_config(train_config: str):
-        if train_config == "phi1_5_z7b_full":
-            return TrainingConfig(**phi1_5_sft_full)
+        if train_config == "train_sft_full_v1":
+            return TrainingConfig(**train_sft_full_v1)
         else:
             raise ValueError(f"Unknown train_config: {train_config}")
 
@@ -66,7 +66,7 @@ class ModelConfig:
     @staticmethod
     def get_config(repo_id: str):
         if repo_id == "microsoft/phi-1_5":
-            return ModelConfig(**Phi1_5)
+            return ModelConfig(**model_phi_1_5)
         else:
             raise ValueError(f"Unknown repo_id: {repo_id}")
 
@@ -74,7 +74,7 @@ class ModelConfig:
         self.rope_n_elem = int(self.head_size * self.rotary_percentage)
 
 
-Phi1_5 = {
+model_phi_1_5 = {
     "hf_repo_id": "microsoft/phi-1_5",
     "block_size": 2048,
     "vocab_size": 50257,
@@ -92,13 +92,13 @@ Phi1_5 = {
     "head_size": 64,
 }
 
-phi1_5_sft_full = {
+train_sft_full_v1 = {
     "train_datasets": [DatasetConfig("HuggingFaceH4/ultrachat_200k", 1.0, "train_sft")],
     "val_datasets": [DatasetConfig("HuggingFaceH4/ultrachat_200k", 1.0, "test_sft")],
     "chat_template": "{% for message in messages %}\n{% if message['role'] == 'user' %}\n{{ '<|user|>\n' + message['content'] + eos_token }}\n{% elif message['role'] == 'system' %}\n{{ '<|system|>\n' + message['content'] + eos_token }}\n{% elif message['role'] == 'assistant' %}\n{{ '<|assistant|>\n'  + message['content'] + eos_token }}\n{% endif %}\n{% if loop.last and add_generation_prompt %}\n{{ '<|assistant|>' }}\n{% endif %}\n{% endfor %}",
     "batch_size": 512,  # update this accordingly. I have 4 A6000 GPUs, so I do 2048/4 = 512
-    "num_epochs": 2,
+    "num_epochs": 3,
     "micro_batch_size": 8,
     "optimizer": AdamWConfig(lr=3.0e-4, weight_decay=0.02),
-    "val_log_step_interval": 10,  # This is at step level and not interval level
+    "val_log_step_interval": 50,  # This is at step level and not interval level
 }

@@ -78,7 +78,7 @@ def convert_hf_checkpoint(repo_id, model_dir):
         v_weight = qkv[("v", "weight")]
         v_bias = qkv[("v", "bias")]
 
-        qkv_weight = torch.cat([q_weight, k_weight, v_weight], dim=1).transpose(0, 1)
+        qkv_weight = torch.cat([q_weight, k_weight, v_weight], dim=0)
         qkv_bias = torch.cat([q_bias, k_bias, v_bias], dim=0)
         new_state_dict[f"transformer.h.{layer_num}.attn.attn.weight"] = qkv_weight
         new_state_dict[f"transformer.h.{layer_num}.attn.attn.bias"] = qkv_bias

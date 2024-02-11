@@ -122,6 +122,8 @@ def get_policies(use_mixed_precision: bool, use_fp16: bool, rank: int):
                 buffer_dtype=torch.float16,
             )
 
+            print(f"Using FP16 on rank {rank}.")
+
     model_auto_wrap = functools.partial(
         transformer_auto_wrap_policy, transformer_layer_cls={Block}
     )
